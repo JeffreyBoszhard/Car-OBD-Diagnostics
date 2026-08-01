@@ -1,12 +1,27 @@
-<!-- Made by The Syndicate Development -->
+﻿<!-- Made by Boszhard Development -->
 <section class="page-screen page-home is-active" data-page="dashboard">
-    <section class="tablet-launch-grid">
-        {% for card in i18n.home.cards %}
-        <button class="tablet-launch-card" type="button" data-page-target="{{ card.page }}" data-tone="{{ 'buy' if card.page == 'purchase-checklist' else card.page }}">
-            <span class="tablet-launch-icon">{{ card.icon }}</span>
-            <strong>{{ card.title }}</strong>
-            <p>{{ card.description }}</p>
-        </button>
-        {% endfor %}
-    </section>
+    <div class="scanner-home-stage">
+        <header class="scanner-home-header">
+            <div>
+                <p class="eyebrow">{{ i18n.partials.sidebar.brand_eyebrow }}</p>
+                <h2>{{ i18n.partials.sidebar.brand_name }}</h2>
+            </div>
+            <div class="scanner-home-status">
+                <span id="home-shell-status">OBD-II</span>
+                <strong>{{ app_version }}</strong>
+            </div>
+        </header>
+
+        <section class="tablet-launch-grid" aria-label="{{ i18n.partials.sidebar.brand_eyebrow }}">
+            {% for card in i18n.home.cards %}
+            <button class="tablet-launch-card" type="button" data-page-target="{{ card.page }}" data-tone="{{ 'buy' if card.page == 'purchase-checklist' else card.page }}">
+                <span class="tablet-launch-icon">{{ card.icon }}</span>
+                <span class="launch-card-copy">
+                    <strong>{{ card.title }}</strong>
+                    <p>{{ card.description }}</p>
+                </span>
+            </button>
+            {% endfor %}
+        </section>
+    </div>
 </section>

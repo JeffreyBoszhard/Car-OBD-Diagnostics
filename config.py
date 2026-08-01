@@ -1,4 +1,4 @@
-# Made by The Syndicate Development
+﻿# Made by Boszhard Development
 """Configuration for the OBD Scanner.
 
 All interval values are in seconds.
@@ -9,7 +9,10 @@ missing values, or the dashboard feels noisy, increase the intervals a little.
 """
 
 # Version shown in the dashboard, sidebar and exported HTML reports.
-APP_VERSION = "v0.5.0"
+# Bump this and add an entry to changelog.py whenever a change is made.
+APP_VERSION = "v0.6.0"
+
+# Changelog entries live in changelog.py. Bump APP_VERSION and add a new entry there whenever a change is made.
 
 # Main dashboard refresh loop.
 # This controls the general live-data update speed for normal sensor values.
@@ -62,10 +65,10 @@ SCAN_HISTORY_LIMIT = 20
 # This does not install updates automatically; it only checks and links to GitHub.
 
 # Raw GitHub URL to the config.py file that contains the newest APP_VERSION.
-UPDATE_CHECK_CONFIG_URL = "https://raw.githubusercontent.com/Aapjekebaapje/Car-OBD-Diagnostics/main/config.py"
+UPDATE_CHECK_CONFIG_URL = "https://raw.githubusercontent.com/JeffreyBoszhard/Car-OBD-Diagnostics/main/config.py"
 
 # Page opened when the user clicks the update notification.
-UPDATE_DOWNLOAD_URL = "https://github.com/Aapjekebaapje/Car-OBD-Diagnostics"
+UPDATE_DOWNLOAD_URL = "https://github.com/JeffreyBoszhard/Car-OBD-Diagnostics"
 
 # Maximum time in seconds the app waits for GitHub to respond.
 # 2.5 means the check may wait up to two and a half seconds.
@@ -74,3 +77,11 @@ UPDATE_DOWNLOAD_URL = "https://github.com/Aapjekebaapje/Car-OBD-Diagnostics"
 # but the request can stay open longer.
 # If the timeout is reached, no update popup is shown and the app continues normally.
 UPDATE_CHECK_TIMEOUT = 2.5
+
+
+
+
+
+
+
+

@@ -1,7 +1,7 @@
-<!-- Made by The Syndicate Development -->
+﻿<!-- Made by Boszhard Development -->
 <section class="page-screen page-live" data-page="live">
-    <div class="live-summary-layout">
-        <article class="panel health-panel">
+    <div class="live-command-grid">
+        <article class="panel health-panel live-health-console">
             <div class="panel-heading">
                 <div>
                     <p class="eyebrow">{{ i18n.live.health_eyebrow }}</p>
@@ -35,7 +35,67 @@
             <div id="purchase-checklist" class="checklist compact-checklist"></div>
         </article>
 
-        <div class="live-summary-side">
+        <section class="live-gauge-layout scanner-gauge-bank">
+            <article class="panel rpm-panel scanner-gauge-card">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">{{ i18n.live.primary_pid }}</p>
+                        <h2>{{ i18n.live.engine_rpm }}</h2>
+                    </div>
+                    <span class="live-pill">{{ i18n.live.live_badge }}</span>
+                </div>
+                <div class="tachometer" aria-label="{{ i18n.live.rpm_meter_aria }}">
+                    <div class="tach-face">
+                        <div class="redline"></div>
+                        <div class="tick t0" data-gauge="rpm" data-angle="135">0</div>
+                        <div class="tick t1" data-gauge="rpm" data-angle="168.75">1</div>
+                        <div class="tick t2" data-gauge="rpm" data-angle="202.5">2</div>
+                        <div class="tick t3" data-gauge="rpm" data-angle="236.25">3</div>
+                        <div class="tick t4" data-gauge="rpm" data-angle="270">4</div>
+                        <div class="tick t5" data-gauge="rpm" data-angle="303.75">5</div>
+                        <div class="tick t6" data-gauge="rpm" data-angle="337.5">6</div>
+                        <div class="tick t7" data-gauge="rpm" data-angle="371.25">7</div>
+                        <div class="tick t8" data-gauge="rpm" data-angle="405">8</div>
+                        <div class="needle" id="rpm-needle"></div>
+                        <div class="needle-cap"></div>
+                        <div class="rpm-readout"><strong id="rpm-value">0</strong><span>{{ i18n.live.rpm_scale }}</span></div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel speed-gauge-panel scanner-gauge-card">
+                <div class="panel-heading">
+                    <div>
+                        <p class="eyebrow">{{ i18n.live.primary_pid }}</p>
+                        <h2>{{ i18n.live.vehicle_speed }}</h2>
+                    </div>
+                    <span class="live-pill">{{ i18n.live.live_badge }}</span>
+                </div>
+                <div class="tachometer" aria-label="{{ i18n.live.speed_meter_aria }}">
+                    <div class="tach-face speed-face">
+                        <div class="tick s0" data-gauge="speed" data-angle="135">0</div>
+                        <div class="tick s1" data-gauge="speed" data-angle="155.77">20</div>
+                        <div class="tick s2" data-gauge="speed" data-angle="176.54">40</div>
+                        <div class="tick s3" data-gauge="speed" data-angle="197.31">60</div>
+                        <div class="tick s4" data-gauge="speed" data-angle="218.08">80</div>
+                        <div class="tick s5" data-gauge="speed" data-angle="238.85">100</div>
+                        <div class="tick s6" data-gauge="speed" data-angle="259.62">120</div>
+                        <div class="tick s7" data-gauge="speed" data-angle="280.38">140</div>
+                        <div class="tick s8" data-gauge="speed" data-angle="301.15">160</div>
+                        <div class="tick s9" data-gauge="speed" data-angle="321.92">180</div>
+                        <div class="tick s10" data-gauge="speed" data-angle="342.69">200</div>
+                        <div class="tick s11" data-gauge="speed" data-angle="363.46">220</div>
+                        <div class="tick s12" data-gauge="speed" data-angle="384.23">240</div>
+                        <div class="tick s13" data-gauge="speed" data-angle="405">260</div>
+                        <div class="needle speed-needle" id="speed-needle"></div>
+                        <div class="needle-cap"></div>
+                        <div class="rpm-readout speed-readout"><strong id="speed-value">0</strong><span>{{ i18n.live.speed_unit }}</span></div>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <aside class="live-side-stack">
             <article class="panel quality-panel">
                 <div class="panel-heading compact-heading">
                     <div>
@@ -45,151 +105,40 @@
                 </div>
                 <div class="status-pill-row dashboard-indicators"><span id="obd-bus-mode" class="status-pill status-info">Bus: --</span><span id="offline-status-pill" class="status-pill status-info">Online check: --</span></div>
                 <div class="quality-grid">
-                <div id="quality-adapter" class="quality-pill is-offline">{{ i18n.js.quality_adapter }}</div>
-                <div id="quality-port" class="quality-pill is-offline">{{ i18n.js.quality_port }}</div>
-                <div id="quality-car" class="quality-pill is-offline">{{ i18n.js.quality_car }}</div>
-                <div id="quality-live" class="quality-pill is-offline">{{ i18n.js.quality_live }}</div>
+                    <div id="quality-adapter" class="quality-pill is-offline">{{ i18n.js.quality_adapter }}</div>
+                    <div id="quality-port" class="quality-pill is-offline">{{ i18n.js.quality_port }}</div>
+                    <div id="quality-car" class="quality-pill is-offline">{{ i18n.js.quality_car }}</div>
+                    <div id="quality-live" class="quality-pill is-offline">{{ i18n.js.quality_live }}</div>
                 </div>
-                <div id="adapter-quality-summary" class="adapter-quality-summary status-info">
-                    <strong>{{ i18n.common.unknown }}</strong>
-                    <p>{{ i18n.partials.sidebar.connection_hint }}</p>
-                </div>
+                <div id="adapter-quality-summary" class="adapter-quality-summary status-info"><strong>{{ i18n.common.unknown }}</strong><p>{{ i18n.partials.sidebar.connection_hint }}</p></div>
             </article>
 
             <section class="quick-metrics-grid live-metrics-grid">
-                <article class="panel quick-metric">
-                    <span>{{ i18n.live.quick_metrics.coolant }}</span>
-                    <strong id="quick-coolant">--</strong>
-                </article>
-                <article class="panel quick-metric">
-                    <span>{{ i18n.live.quick_metrics.voltage }}</span>
-                    <strong id="quick-voltage">--</strong>
-                </article>
-                <article class="panel quick-metric">
-                    <span>{{ i18n.live.quick_metrics.fuel_trim }}</span>
-                    <strong id="quick-fuel-trim">--</strong>
-                </article>
-                <article class="panel quick-metric">
-                    <span>{{ i18n.live.quick_metrics.engine_load }}</span>
-                    <strong id="quick-engine-load">--</strong>
-                </article>
+                <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.coolant }}</span><strong id="quick-coolant">--</strong></article>
+                <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.voltage }}</span><strong id="quick-voltage">--</strong></article>
+                <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.fuel_trim }}</span><strong id="quick-fuel-trim">--</strong></article>
+                <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.engine_load }}</span><strong id="quick-engine-load">--</strong></article>
             </section>
-        </div>
-    </div>
-
-    <div class="live-gauge-layout">
-        <article class="panel rpm-panel">
-            <div class="panel-heading">
-                <div>
-                    <p class="eyebrow">{{ i18n.live.primary_pid }}</p>
-                    <h2>{{ i18n.live.engine_rpm }}</h2>
-                </div>
-                <span class="live-pill">{{ i18n.live.live_badge }}</span>
-            </div>
-            <div class="tachometer" aria-label="{{ i18n.live.rpm_meter_aria }}">
-                <div class="tach-face">
-                    <div class="redline"></div>
-                    <div class="tick t0" data-gauge="rpm" data-angle="135">0</div>
-                    <div class="tick t1" data-gauge="rpm" data-angle="168.75">1</div>
-                    <div class="tick t2" data-gauge="rpm" data-angle="202.5">2</div>
-                    <div class="tick t3" data-gauge="rpm" data-angle="236.25">3</div>
-                    <div class="tick t4" data-gauge="rpm" data-angle="270">4</div>
-                    <div class="tick t5" data-gauge="rpm" data-angle="303.75">5</div>
-                    <div class="tick t6" data-gauge="rpm" data-angle="337.5">6</div>
-                    <div class="tick t7" data-gauge="rpm" data-angle="371.25">7</div>
-                    <div class="tick t8" data-gauge="rpm" data-angle="405">8</div>
-                    <div class="needle" id="rpm-needle"></div>
-                    <div class="needle-cap"></div>
-                    <div class="rpm-readout">
-                        <strong id="rpm-value">0</strong>
-                            <span>{{ i18n.live.rpm_scale }}</span>
-                    </div>
-                </div>
-            </div>
-        </article>
-
-        <article class="panel speed-gauge-panel">
-            <div class="panel-heading">
-                <div>
-                    <p class="eyebrow">{{ i18n.live.primary_pid }}</p>
-                    <h2>{{ i18n.live.vehicle_speed }}</h2>
-                </div>
-                <span class="live-pill">{{ i18n.live.live_badge }}</span>
-            </div>
-            <div class="tachometer" aria-label="{{ i18n.live.speed_meter_aria }}">
-                <div class="tach-face speed-face">
-                    <div class="tick s0" data-gauge="speed" data-angle="135">0</div>
-                    <div class="tick s1" data-gauge="speed" data-angle="155.77">20</div>
-                    <div class="tick s2" data-gauge="speed" data-angle="176.54">40</div>
-                    <div class="tick s3" data-gauge="speed" data-angle="197.31">60</div>
-                    <div class="tick s4" data-gauge="speed" data-angle="218.08">80</div>
-                    <div class="tick s5" data-gauge="speed" data-angle="238.85">100</div>
-                    <div class="tick s6" data-gauge="speed" data-angle="259.62">120</div>
-                    <div class="tick s7" data-gauge="speed" data-angle="280.38">140</div>
-                    <div class="tick s8" data-gauge="speed" data-angle="301.15">160</div>
-                    <div class="tick s9" data-gauge="speed" data-angle="321.92">180</div>
-                    <div class="tick s10" data-gauge="speed" data-angle="342.69">200</div>
-                    <div class="tick s11" data-gauge="speed" data-angle="363.46">220</div>
-                    <div class="tick s12" data-gauge="speed" data-angle="384.23">240</div>
-                    <div class="tick s13" data-gauge="speed" data-angle="405">260</div>
-                    <div class="needle speed-needle" id="speed-needle"></div>
-                    <div class="needle-cap"></div>
-                    <div class="rpm-readout speed-readout">
-                        <strong id="speed-value">0</strong>
-                            <span>{{ i18n.live.speed_unit }}</span>
-                    </div>
-                </div>
-            </div>
-        </article>
+        </aside>
     </div>
 
     <article class="panel graph-panel">
         <div class="panel-heading graph-record-heading">
-            <div>
-                <p class="eyebrow">{{ i18n.live.live_trends_eyebrow }}</p>
-                <h2>{{ i18n.live.live_trends_title }}</h2>
-            </div>
-            <div class="recording-actions">
-                <button id="record-graphs-button" class="secondary-action inline-action" type="button">Start Recording</button>
-                <span id="recording-status" class="recording-status">No recording active</span>
-            </div>
+            <div><p class="eyebrow">{{ i18n.live.live_trends_eyebrow }}</p><h2>{{ i18n.live.live_trends_title }}</h2></div>
+            <div class="recording-actions"><button id="record-graphs-button" class="secondary-action inline-action" type="button">Start Recording</button><span id="recording-status" class="recording-status">No recording active</span></div>
         </div>
         <div class="graph-grid">
-            <div class="graph-card">
-                    <span>{{ i18n.live.engine_rpm }}</span>
-                <canvas id="rpm-chart" width="560" height="180"></canvas>
-            </div>
-            <div class="graph-card">
-                    <span>{{ i18n.live.vehicle_speed }}</span>
-                <canvas id="speed-chart" width="560" height="180"></canvas>
-            </div>
-            <div class="graph-card">
-                    <span>{{ i18n.live.quick_metrics.coolant }}</span>
-                <canvas id="coolant-chart" width="560" height="180"></canvas>
-            </div>
-            <div class="graph-card">
-                    <span>{{ i18n.live.quick_metrics.voltage }}</span>
-                <canvas id="voltage-chart" width="560" height="180"></canvas>
-            </div>
-            <div class="graph-card">
-                    <span>{{ i18n.live.quick_metrics.engine_load }}</span>
-                <canvas id="engine-load-chart" width="560" height="180"></canvas>
-            </div>
-            <div class="graph-card">
-                    <span>{{ i18n.live.throttle_position }}</span>
-                <canvas id="throttle-chart" width="560" height="180"></canvas>
-            </div>
+            <div class="graph-card"><span>{{ i18n.live.engine_rpm }}</span><canvas id="rpm-chart" width="560" height="180"></canvas></div>
+            <div class="graph-card"><span>{{ i18n.live.vehicle_speed }}</span><canvas id="speed-chart" width="560" height="180"></canvas></div>
+            <div class="graph-card"><span>{{ i18n.live.quick_metrics.coolant }}</span><canvas id="coolant-chart" width="560" height="180"></canvas></div>
+            <div class="graph-card"><span>{{ i18n.live.quick_metrics.voltage }}</span><canvas id="voltage-chart" width="560" height="180"></canvas></div>
+            <div class="graph-card"><span>{{ i18n.live.quick_metrics.engine_load }}</span><canvas id="engine-load-chart" width="560" height="180"></canvas></div>
+            <div class="graph-card"><span>{{ i18n.live.throttle_position }}</span><canvas id="throttle-chart" width="560" height="180"></canvas></div>
         </div>
     </article>
 
     <article class="panel stream-panel">
-        <div class="panel-heading">
-            <div>
-                <p class="eyebrow">{{ i18n.live.live_pids_eyebrow }}</p>
-                <h2>{{ i18n.live.live_pids_title }}</h2>
-            </div>
-        </div>
+        <div class="panel-heading"><div><p class="eyebrow">{{ i18n.live.live_pids_eyebrow }}</p><h2>{{ i18n.live.live_pids_title }}</h2></div></div>
         <div class="sensor-table" id="live-grid"></div>
     </article>
 </section>
-

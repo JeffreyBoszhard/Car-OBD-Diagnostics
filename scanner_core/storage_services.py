@@ -1,4 +1,4 @@
-# Made by The Syndicate Development
+# Made by Boszhard Development
 import json
 import sqlite3
 from pathlib import Path

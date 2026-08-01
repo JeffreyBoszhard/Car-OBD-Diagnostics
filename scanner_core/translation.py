@@ -1,4 +1,4 @@
-# Made by The Syndicate Development
+# Made by Boszhard Development
 from __future__ import annotations
 
 from copy import deepcopy
@@ -958,7 +958,7 @@ TRANSLATIONS = {
                 "yes": "Ja",
             },
             "sidebar": {
-                "brand_eyebrow": "Diagnose Tablet v0.5.0",
+                "brand_eyebrow": "Diagnose Tablet",
                 "nav_home_small": "Terug naar het tablet-overzicht",
                 "connection_eyebrow": "Verbindingsstatus",
                 "status_text": "Verbinden...",

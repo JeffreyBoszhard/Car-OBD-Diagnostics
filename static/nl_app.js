@@ -1,4 +1,4 @@
-/* Made by The Syndicate Development */
+﻿/* Made by Boszhard Development */
 const CONNECTED_POLL_MS = 100;
 const GAUGE_POLL_MS = 35;
 const DISCONNECTED_POLL_MS = 1200;
@@ -917,14 +917,14 @@ function updateConnectionQuality(quality) {
         if (previousState !== nextState) {
             element.dataset.online = nextState;
         }
-        element.innerHTML = `<span>${item.label}</span><strong>${item.online ? tr("quality_ok", "Online") : tr("quality_waiting", "Waiting")}</strong>`;
+        element.innerHTML = `<span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.online ? tr("quality_ok", "Online") : tr("quality_waiting", "Waiting"))}</strong>`;
     });
 
     const summary = quality.quality || {};
     const summaryElement = byId("adapter-quality-summary");
     if (summaryElement) {
         summaryElement.className = `adapter-quality-summary status-${summary.level || "info"}`;
-        summaryElement.innerHTML = `<strong>${summary.label || tr("unknown", "Unknown")}</strong><p>${summary.detail || ""}</p>`;
+        summaryElement.innerHTML = `<strong>${escapeHtml(summary.label || tr("unknown", "Unknown"))}</strong><p>${escapeHtml(summary.detail || "")}</p>`;
     }
 }
 
@@ -1112,7 +1112,7 @@ function drawLineChart(canvasId, values, color, maxValueHint = 100) {
     const height = canvas.height;
     ctx.clearRect(0, 0, width, height);
 
-    ctx.fillStyle = "#f3f6fa";
+    ctx.fillStyle = "#f6f9fc";
     ctx.fillRect(0, 0, width, height);
 
     ctx.strokeStyle = "#d6dee8";
@@ -1736,9 +1736,15 @@ function closeExportModal() {
     if (modal) modal.hidden = true;
 }
 
+function currentExportPreset() {
+    const select = byId("report-export-preset");
+    return select && select.value ? select.value : "full";
+}
+
 function exportScanReportFormat(format) {
     closeExportModal();
-    window.location.href = `/api/report/export?format=${encodeURIComponent(format)}`;
+    const preset = encodeURIComponent(currentExportPreset());
+    window.location.href = `/api/report/export?format=${encodeURIComponent(format)}&preset=${preset}`;
 }
 
 function formatEngine(decoded) {
@@ -1864,10 +1870,14 @@ function updateVehicleProfileView(profile) {
 
     setText("plate-result", lastVehicleProfile.plate_message || tr("plate_default", "Enter a Dutch license plate manually to load RDW data."));
     setText("rdw-plate", displayValue(rdw.plate));
+    setText("rdw-plate-mini", displayValue(rdw.plate));
     setText("rdw-brand", displayValue(rdw.brand));
+    setText("rdw-brand-mini", displayValue(rdw.brand));
     setText("rdw-model", displayValue(rdw.model));
+    setText("rdw-model-mini", displayValue(rdw.model));
     setText("rdw-vehicle-type", displayValue(rdw.vehicle_type));
     setText("rdw-fuel", displayValue(rdw.fuel));
+    setText("rdw-fuel-mini", displayValue(rdw.fuel));
     setText("rdw-color", displayValue(rdw.color));
     setText("rdw-apk", formatCompactDate(rdw.apk_expiry));
     setText("rdw-first-registration", formatCompactDate(rdw.first_registration));
@@ -2581,7 +2591,7 @@ async function testConnection() {
             const row = document.createElement("div");
             row.className = `support-row ${step.ok ? "is-supported" : "is-unsupported"}`;
             row.style.animationDelay = `${Math.min(index * 18, 220)}ms`;
-            row.innerHTML = `<div><strong>${step.name}</strong><p>${step.detail || ""}</p></div><span class="support-badge ${step.ok ? "status-good" : "status-warning"}">${step.ok ? "OK" : "Check"}</span>`;
+            row.innerHTML = `<div><strong>${escapeHtml(step.name || "")}</strong><p>${escapeHtml(step.detail || "")}</p></div><span class="support-badge ${step.ok ? "status-good" : "status-warning"}">${step.ok ? "OK" : "Check"}</span>`;
             stepsContainer.appendChild(row);
         });
     } catch (error) {
@@ -2593,22 +2603,136 @@ async function testConnection() {
     }
 }
 
-async function scanCodes() {
-    if (codeScanPending) return;
+let vehicleScanPollTimer = null;
 
-    codeScanPending = true;
-    updateDtcStatus({
-        ...lastDtcStatus,
-        scanning: true,
-            message: tr("scanning_fault_codes", "Scanning fault codes...")
-    });
+const SCAN_STATUS_LABELS = {
+    waiting: "Waiting",
+    scanning: "Scanning...",
+    complete: "Complete",
+    no_faults: "No Faults Found",
+    faults_found: "Faults Found",
+    warning: "Warning",
+    not_supported: "Not Supported",
+    no_data: "No Data",
+    error: "Communication Error",
+    cancelled: "Cancelled",
+};
 
-    try {
-        const response = await fetch("/api/codes/scan", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" }
+const SCAN_STATUS_ICONS = {
+    waiting: "o",
+    scanning: ">",
+    complete: "OK",
+    no_faults: "OK",
+    faults_found: "!",
+    warning: "!",
+    not_supported: "-",
+    no_data: "-",
+    error: "x",
+    cancelled: "x",
+};
+
+function renderVehicleScanProgress(scan) {
+    const container = byId("vehicle-scan-progress");
+    if (!container || !scan || !Array.isArray(scan.parts)) return;
+
+    container.hidden = false;
+
+    const untouched = scan.parts.every((p) => p.status === "waiting");
+    if (!scan.active && scan.connection_error && untouched) {
+        const list = byId("scan-parts-list");
+        if (list) list.innerHTML = "";
+        const fractionEl = byId("scan-progress-fraction");
+        if (fractionEl) fractionEl.textContent = "Not started";
+        const fillEl = byId("scan-progress-bar-fill");
+        if (fillEl) fillEl.style.width = "0%";
+        const cancelButton = byId("cancel-scan-button");
+        if (cancelButton) cancelButton.hidden = true;
+        const summaryEl = byId("scan-summary");
+        if (summaryEl) {
+            summaryEl.hidden = false;
+            summaryEl.className = "scan-summary attention";
+            summaryEl.innerHTML = `<strong>SCAN NOT STARTED</strong><br>${escapeHtml(scan.connection_error || "")}`;
+        }
+        return;
+    }
+
+    const total = scan.parts.length;
+    const doneCount = scan.parts.filter((p) => p.status !== "waiting" && p.status !== "scanning").length;
+    const activeIndex = Math.max(scan.current_index ?? -1, 0);
+
+    const fractionEl = byId("scan-progress-fraction");
+    if (fractionEl) {
+        fractionEl.textContent = scan.active
+            ? `Part ${activeIndex + 1} of ${total}`
+            : `${doneCount} of ${total} complete`;
+    }
+
+    const fillEl = byId("scan-progress-bar-fill");
+    if (fillEl) {
+        const pct = total ? Math.round((doneCount / total) * 100) : 0;
+        fillEl.style.width = `${pct}%`;
+    }
+
+    const list = byId("scan-parts-list");
+    if (list) {
+        list.innerHTML = "";
+        scan.parts.forEach((part) => {
+            const row = document.createElement("li");
+            row.className = "scan-part-row";
+            row.dataset.status = part.status;
+
+            const icon = document.createElement("span");
+            icon.className = "scan-part-icon";
+            icon.textContent = SCAN_STATUS_ICONS[part.status] || "o";
+
+            const name = document.createElement("span");
+            name.className = "scan-part-name";
+            name.textContent = part.name;
+
+            const result = document.createElement("span");
+            result.className = "scan-part-result";
+            result.textContent = part.status === "scanning"
+                ? (part.detail || "Scanning...")
+                : (part.result || SCAN_STATUS_LABELS[part.status] || "");
+
+            row.append(icon, name, result);
+            list.appendChild(row);
         });
+    }
+
+    const cancelButton = byId("cancel-scan-button");
+    if (cancelButton) cancelButton.hidden = !scan.active;
+
+    const summaryEl = byId("scan-summary");
+    if (summaryEl) {
+        if (!scan.active && scan.summary) {
+            const s = scan.summary;
+            summaryEl.hidden = false;
+            summaryEl.className = `scan-summary ${s.overall_status === "attention_required" ? "attention" : "all-clear"}`;
+            summaryEl.innerHTML = `
+                <strong>Diagnostic Scan Complete</strong><br>
+                VIN: ${escapeHtml(s.vin || "Unknown")}<br>
+                Stored DTCs: ${escapeHtml(s.stored_dtc_count ?? 0)} &middot; Pending: ${escapeHtml(s.pending_dtc_count ?? 0)} &middot; Permanent: ${escapeHtml(s.permanent_dtc_count ?? 0)}<br>
+                Readiness: ${escapeHtml(s.readiness_ready ?? 0)} Ready / ${escapeHtml(s.readiness_incomplete ?? 0)} Incomplete<br>
+                Overall Status: ${s.overall_status === "attention_required" ? "ATTENTION REQUIRED" : "ALL CLEAR"}
+            `;
+        } else if (!scan.active && scan.interrupted) {
+            summaryEl.hidden = false;
+            summaryEl.className = "scan-summary attention";
+            summaryEl.innerHTML = `<strong>SCAN INTERRUPTED</strong><br>${escapeHtml(scan.connection_error || "Vehicle communication was lost during the scan.")}`;
+        } else {
+            summaryEl.hidden = true;
+        }
+    }
+}
+
+async function pollVehicleScanStatus() {
+    try {
+        const response = await fetch("/api/scan/vehicle/status");
         const result = await response.json();
+        const scan = result.scan || {};
+
+        renderVehicleScanProgress(scan);
         updateDtcStatus(result.dtc_status || {});
         updateCodes("stored-codes", result.dtc?.stored || []);
         updateCodes("pending-codes", result.dtc?.pending || []);
@@ -2617,9 +2741,47 @@ async function scanCodes() {
         updateFreezeFrame(result.freeze_frame || {});
         updateReadiness(result.readiness || {});
         updateReport(result.report || {});
+
+        if (scan.active) {
+            vehicleScanPollTimer = setTimeout(pollVehicleScanStatus, 400);
+        } else {
+            codeScanPending = false;
+            const scanButton = byId("scan-codes-button");
+            if (scanButton) scanButton.disabled = false;
+        }
+    } catch (error) {
+        console.error(error);
+        codeScanPending = false;
+        const scanButton = byId("scan-codes-button");
+        if (scanButton) scanButton.disabled = false;
+    }
+}
+
+async function scanCodes() {
+    if (codeScanPending) return;
+    codeScanPending = true;
+
+    const scanButton = byId("scan-codes-button");
+    if (scanButton) scanButton.disabled = true;
+
+    updateDtcStatus({
+        ...lastDtcStatus,
+        scanning: true,
+        message: tr("scanning_fault_codes", "Scanning fault codes...")
+    });
+
+    try {
+        const response = await fetch("/api/scan/vehicle/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
+        });
+        const result = await response.json();
         if (!response.ok || !result.success) {
             throw new Error(result.message || `Server returned status ${response.status}`);
         }
+        renderVehicleScanProgress(result.scan || {});
+        clearTimeout(vehicleScanPollTimer);
+        pollVehicleScanStatus();
     } catch (error) {
         console.error(error);
         updateDtcStatus({
@@ -2628,9 +2790,35 @@ async function scanCodes() {
             scanning: false,
             message: error.message || tr("fault_code_scan_failed", "Fault code scan failed.")
         });
-    } finally {
         codeScanPending = false;
-        updateDtcStatus({});
+        if (scanButton) scanButton.disabled = false;
+    }
+}
+
+async function cancelVehicleScan() {
+    const cancelButton = byId("cancel-scan-button");
+    if (cancelButton) cancelButton.disabled = true;
+
+    try {
+        const response = await fetch("/api/scan/vehicle/cancel", { method: "POST" });
+        const result = await response.json().catch(() => ({}));
+        if (result.scan) {
+            renderVehicleScanProgress(result.scan);
+        }
+        updateDtcStatus({
+            ...lastDtcStatus,
+            scanning: false,
+            message: result.message || tr("scan_cancelled", "Vehicle diagnostic scan cancelled.")
+        });
+        codeScanPending = false;
+        const scanButton = byId("scan-codes-button");
+        if (scanButton) scanButton.disabled = false;
+        clearTimeout(vehicleScanPollTimer);
+        pollVehicleScanStatus();
+    } catch (error) {
+        console.error(error);
+    } finally {
+        if (cancelButton) cancelButton.disabled = false;
     }
 }
 
@@ -2746,6 +2934,74 @@ function renderSensorSupportList(container, items, supported) {
     });
 }
 
+async function checkChangelog() {
+    try {
+        const response = await fetch("/api/changelog", { signal: AbortSignal.timeout(3500) });
+        if (!response.ok) return;
+        const result = await response.json();
+        if (!result.success || !result.should_show) return;
+        showChangelogDialog(result.current_version, result.changelog || []);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function showChangelogDialog(version, entries) {
+    const overlay = byId("changelog-overlay");
+    const versionEl = byId("changelog-version");
+    const entriesEl = byId("changelog-entries");
+    const closeButton = byId("changelog-close-button");
+    if (!overlay || !entriesEl || !closeButton) return;
+
+    if (versionEl) versionEl.textContent = version;
+
+    entriesEl.innerHTML = "";
+    entries.forEach((entry) => {
+        const block = document.createElement("div");
+        block.className = "changelog-entry";
+
+        const header = document.createElement("div");
+        header.className = "changelog-entry-header";
+        header.innerHTML = `<span>${escapeHtml(entry.version || "")}</span><span class="changelog-entry-date">${escapeHtml(entry.date || "")}</span>`;
+
+        const list = document.createElement("ul");
+        (entry.changes || []).forEach((change) => {
+            const li = document.createElement("li");
+            li.textContent = change;
+            list.appendChild(li);
+        });
+
+        block.append(header, list);
+        entriesEl.appendChild(block);
+    });
+
+    overlay.hidden = false;
+    overlay.classList.remove("is-closing");
+    overlay.classList.add("is-open");
+
+    const closeDialog = async () => {
+        overlay.classList.remove("is-open");
+        overlay.classList.add("is-closing");
+        window.setTimeout(() => {
+            overlay.classList.remove("is-closing");
+            overlay.hidden = true;
+        }, 220);
+        closeButton.removeEventListener("click", closeDialog);
+        overlay.removeEventListener("click", handleBackdrop);
+        try {
+            await fetch("/api/changelog/ack", { method: "POST" });
+        } catch (error) {
+            console.error(error);
+        }
+    };
+    const handleBackdrop = (event) => {
+        if (event.target === overlay) closeDialog();
+    };
+
+    closeButton.addEventListener("click", closeDialog);
+    overlay.addEventListener("click", handleBackdrop);
+}
+
 function openConfirmDialog(title, message) {
     const overlay = byId("confirm-overlay");
     const titleElement = byId("confirm-title");
@@ -2828,7 +3084,7 @@ function renderScanHistory(scans) {
         const meta = document.createElement("div");
         const scanStatus = scan.payload?.status || {};
         const connectionLabel = scanStatus.connected ? tr("history_connection_connected", "Connected") : tr("history_connection_offline", "Offline");
-        meta.innerHTML = `<strong>${scan.label}</strong><p>${scan.created_at}</p><span>${scan.summary}</span><p>${connectionLabel} | ${scanStatus.protocol || "Unknown"} | ${scanStatus.current_port || tr("port_none_selected", "No COM port selected")}</p>`;
+        meta.innerHTML = `<strong>${escapeHtml(scan.label || "")}</strong><p>${escapeHtml(scan.created_at || "")}</p><span>${escapeHtml(scan.summary || "")}</span><p>${escapeHtml(connectionLabel)} | ${escapeHtml(scanStatus.protocol || "Unknown")} | ${escapeHtml(scanStatus.current_port || tr("port_none_selected", "No COM port selected"))}</p>`;
 
         const payload = scan.payload || {};
         const detail = document.createElement("div");
@@ -2836,8 +3092,67 @@ function renderScanHistory(scans) {
         detail.innerHTML = `<strong>${displayValue(payload.health?.score, "--")}</strong><p>${tr("history_health_score", "Health score")}</p>`;
 
         row.append(meta, detail);
+        row.addEventListener("click", () => {
+            history.querySelectorAll(".history-row").forEach((other) => other.classList.remove("is-selected"));
+            row.classList.add("is-selected");
+            renderScanHistoryDetail(scan);
+        });
         history.appendChild(row);
     });
+}
+
+function renderScanHistoryDetail(scan) {
+    const container = byId("scan-history-detail");
+    if (!container) return;
+
+    const payload = scan?.payload || {};
+    const status = payload.status || {};
+    const dtc = payload.dtc || {};
+    const profile = payload.vehicle_profile || {};
+
+    container.className = "detail-grid";
+    container.replaceChildren();
+
+    const rows = [
+        [tr("history_label", "Label"), scan?.label || "--"],
+        [tr("history_saved_at", "Saved at"), scan?.created_at || "--"],
+        [tr("history_health_score", "Health score"), displayValue(payload.health?.score, "--")],
+        [tr("history_vin", "VIN"), profile.vin || "--"],
+        [tr("history_protocol", "Protocol"), status.protocol || tr("unknown", "Unknown")],
+        [tr("history_port", "Port"), status.current_port || tr("port_none_selected", "No COM port selected")],
+        [tr("codes_stored", "Stored codes"), String((dtc.stored || []).length)],
+        [tr("codes_pending", "Pending codes"), String((dtc.pending || []).length)],
+        [tr("codes_permanent", "Permanent codes"), String((dtc.permanent || []).length)],
+    ];
+
+    rows.forEach(([label, value]) => {
+        const row = document.createElement("div");
+        row.className = "detail-row";
+        const key = document.createElement("span");
+        key.textContent = label;
+        const val = document.createElement("strong");
+        val.textContent = value;
+        row.append(key, val);
+        container.appendChild(row);
+    });
+
+    const allCodes = [...(dtc.stored || []), ...(dtc.pending || []), ...(dtc.permanent || [])];
+    if (allCodes.length) {
+        const codeWrap = document.createElement("div");
+        codeWrap.className = "codes";
+        codeWrap.style.gridColumn = "1 / -1";
+        allCodes.forEach((item) => {
+            const code = document.createElement("div");
+            code.className = `code severity-${item.severity || "unknown"}`;
+            const strong = document.createElement("strong");
+            strong.textContent = item.code || "--";
+            const desc = document.createElement("p");
+            desc.textContent = item.description || tr("dtc_no_description", "Description unavailable");
+            code.append(strong, desc);
+            codeWrap.appendChild(code);
+        });
+        container.appendChild(codeWrap);
+    }
 }
 
 async function saveScanToDatabase() {
@@ -3288,6 +3603,7 @@ on("manual-vin-form", "submit", saveManualVin);
 on("clear-vin-button", "click", clearManualVinInput);
 on("plate-form", "submit", savePlateLookup);
 on("scan-codes-button", "click", scanCodes);
+on("cancel-scan-button", "click", cancelVehicleScan);
 on("refresh-supported-button", "click", fetchSupportedSensors);
 on("save-scan-button", "click", saveScanToDatabase);
 on("record-graphs-button", "click", toggleGraphRecording);
@@ -3363,8 +3679,13 @@ fetchGarageNotes();
 renderVehicleLookupHistory();
 fetchData();
 checkForUpdates();
+checkChangelog();
 window.addEventListener("load", () => {
     positionGaugeTicks();
     window.requestAnimationFrame(positionGaugeTicks);
 });
 window.addEventListener("resize", positionGaugeTicks);
+
+
+
+

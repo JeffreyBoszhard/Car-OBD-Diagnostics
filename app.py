@@ -1,4 +1,4 @@
-# Made by The Syndicate Development
+﻿# Made by Boszhard Development
 import threading
 import time
 import traceback
@@ -28,6 +28,7 @@ from config import (
     SCAN_HISTORY_LIMIT,
     STALE_AFTER_SECONDS,
 )
+from changelog import get_changelog_since
 from scanner_core.demo_services import (
     build_demo_dtc_snapshot,
     build_demo_freeze_frame,
@@ -246,6 +247,33 @@ freeze_frame_data = {
     "values": {},
 }
 demo_codes_cleared = False
+
+VEHICLE_SCAN_PART_DEFS = [
+    ("stored_dtc", "Stored Diagnostic Trouble Codes"),
+    ("pending_dtc", "Pending Diagnostic Trouble Codes"),
+    ("permanent_dtc", "Permanent Diagnostic Trouble Codes"),
+    ("freeze_frame", "Freeze Frame Data"),
+    ("readiness", "Emissions Readiness Monitors"),
+    ("mode06", "On-Board Monitor Test Results"),
+    ("vehicle_info", "Vehicle Identification"),
+    ("supported_pids", "Supported Live Data PIDs"),
+]
+
+vehicle_scan_state = {
+    "active": False,
+    "cancelled": False,
+    "interrupted": False,
+    "started_at": None,
+    "finished_at": None,
+    "current_index": -1,
+    "parts": [
+        {"id": part_id, "name": name, "status": "waiting", "detail": "", "result": None}
+        for part_id, name in VEHICLE_SCAN_PART_DEFS
+    ],
+    "summary": None,
+    "connection_error": None,
+}
+vehicle_scan_lock = threading.Lock()
 
 vehicle_profile = {
     "vin": "",
@@ -1295,6 +1323,41 @@ def update_garage_note(note_id, vin, plate, title, mileage, note):
     )
 
 
+EXPORT_PRESETS = {
+    "full": None,
+    "codes": {"dtc", "freeze_frame", "readiness"},
+    "live": {"vehicle", "pid_support"},
+    "vehicle": {"vehicle_profile"},
+}
+
+
+def apply_export_preset(payload, preset):
+    """Return a copy of the scan payload trimmed to the requested export preset.
+
+    'full' keeps everything. Every other preset keeps the shared header blocks
+    (status/health/meta) and blanks the sections that preset does not cover, so
+    the exported report actually matches what the user picked in the dropdown.
+    """
+    keep = EXPORT_PRESETS.get(str(preset or "full").lower(), None)
+    if not keep:
+        return payload
+
+    trimmed = dict(payload)
+    optional = {
+        "dtc": {"stored": [], "pending": [], "permanent": []},
+        "freeze_frame": {"available": False, "values": {}},
+        "readiness": {"available": False, "monitors": []},
+        "vehicle": {},
+        "pid_support": {},
+        "vehicle_profile": {},
+    }
+    for section, blank in optional.items():
+        if section not in keep:
+            trimmed[section] = blank
+    trimmed["export_preset"] = str(preset).lower()
+    return trimmed
+
+
 def render_export_html(payload):
     status = payload.get("status", {})
     vehicle = payload.get("vehicle", {})
@@ -2200,6 +2263,261 @@ def scan_dtc_codes():
         raise
 
 
+def _vehicle_scan_set_part(part_id, **fields):
+    with vehicle_scan_lock:
+        for index, part in enumerate(vehicle_scan_state["parts"]):
+            if part["id"] == part_id:
+                part.update(fields)
+                if fields.get("status") == "scanning":
+                    vehicle_scan_state["current_index"] = index
+                break
+
+
+def _vehicle_scan_cancelled():
+    with vehicle_scan_lock:
+        return vehicle_scan_state["cancelled"]
+
+
+def _vehicle_still_connected(demo_mode):
+    if demo_mode:
+        return True
+    return bool(connection and connection.is_connected())
+
+
+def _run_vehicle_scan_stored_dtc(demo_mode):
+    if demo_mode:
+        data = scan_dtc_codes()
+        stored = data["stored"]
+    else:
+        stored = read_dtc(get_command("GET_DTC"))
+        with state_lock:
+            dtc_data["stored"] = stored
+    if stored:
+        return "faults_found", f"{len(stored)} fault code(s) found."
+    return "no_faults", "No fault codes found."
+
+
+def _run_vehicle_scan_pending_dtc(demo_mode):
+    if demo_mode:
+        with state_lock:
+            pending = list(dtc_data["pending"])
+    else:
+        pending = read_dtc(get_command("GET_CURRENT_DTC"))
+        with state_lock:
+            dtc_data["pending"] = pending
+    if pending:
+        return "faults_found", f"{len(pending)} fault code(s) found."
+    return "no_faults", "No fault codes found."
+
+
+def _run_vehicle_scan_permanent_dtc(demo_mode):
+    if demo_mode:
+        with state_lock:
+            permanent = list(dtc_data["permanent"])
+    else:
+        permanent = read_dtc(get_command("GET_PERMANENT_DTC"))
+        with state_lock:
+            dtc_data["permanent"] = permanent
+    if permanent:
+        return "faults_found", f"{len(permanent)} fault code(s) found."
+    return "no_faults", "No fault codes found."
+
+
+def _run_vehicle_scan_freeze_frame(demo_mode):
+    global freeze_frame_data
+    if demo_mode:
+        with state_lock:
+            demo_preset = normalize_demo_preset(demo_drive_state.get("preset", get_demo_preset_name()))
+            cleared = bool(demo_codes_cleared)
+        snapshot = {"available": False, "values": {}} if cleared else build_demo_freeze_frame(demo_preset)
+        with state_lock:
+            freeze_frame_data = snapshot
+    else:
+        snapshot = get_freeze_frame_snapshot(connection, obd_lock, get_command)
+        with state_lock:
+            freeze_frame_data = snapshot
+    if snapshot.get("available"):
+        return "complete", "Freeze frame snapshot available."
+    return "no_data", "No freeze frame data available."
+
+
+def _run_vehicle_scan_readiness(demo_mode):
+    global readiness_data
+    if demo_mode:
+        with state_lock:
+            demo_preset = normalize_demo_preset(demo_drive_state.get("preset", get_demo_preset_name()))
+            cleared = bool(demo_codes_cleared)
+        snapshot = build_demo_readiness_for_current_clear_state(demo_preset, cleared)
+        with state_lock:
+            readiness_data = snapshot
+    else:
+        snapshot = get_readiness_snapshot(connection, obd_lock, get_command)
+        with state_lock:
+            readiness_data = snapshot
+    if not snapshot.get("available"):
+        return "not_supported", "Readiness monitors not supported by this ECU."
+    monitors = snapshot.get("monitors") or []
+    incomplete = [m for m in monitors if not m.get("complete")]
+    if incomplete:
+        return "warning", f"{len(monitors) - len(incomplete)} ready / {len(incomplete)} incomplete."
+    return "complete", f"{len(monitors)} monitor(s) ready." if monitors else "No monitor data reported."
+
+
+def _run_vehicle_scan_mode06(demo_mode):
+    snapshot = build_mode06_snapshot()
+    if not snapshot.get("available"):
+        return "not_supported", "Mode 06 test results not available from this adapter/vehicle."
+    return "complete", f"{len(snapshot.get('tests') or [])} monitor test result(s) read."
+
+
+def _run_vehicle_scan_vehicle_info(demo_mode):
+    ok, message = refresh_vin_profile()
+    with state_lock:
+        vin = vehicle_profile.get("vin", "")
+    if ok and vin:
+        return "complete", f"VIN: {vin}"
+    if ok:
+        return "no_data", message
+    return "error", message
+
+
+def _run_vehicle_scan_supported_pids(demo_mode):
+    matrix = get_supported_sensor_matrix()
+    supported = [s for s in matrix if s.get("supported")]
+    if not matrix:
+        return "no_data", "Could not read the supported PID list."
+    return "complete", f"{len(supported)} of {len(matrix)} live data PIDs supported."
+
+
+VEHICLE_SCAN_RUNNERS = {
+    "stored_dtc": _run_vehicle_scan_stored_dtc,
+    "pending_dtc": _run_vehicle_scan_pending_dtc,
+    "permanent_dtc": _run_vehicle_scan_permanent_dtc,
+    "freeze_frame": _run_vehicle_scan_freeze_frame,
+    "readiness": _run_vehicle_scan_readiness,
+    "mode06": _run_vehicle_scan_mode06,
+    "vehicle_info": _run_vehicle_scan_vehicle_info,
+    "supported_pids": _run_vehicle_scan_supported_pids,
+}
+
+
+def _build_vehicle_scan_summary():
+    with vehicle_scan_lock:
+        parts = {part["id"]: part for part in vehicle_scan_state["parts"]}
+
+    def count_from(part_id):
+        part = parts.get(part_id) or {}
+        result = part.get("result") or ""
+        return result
+
+    with state_lock:
+        stored = len(dtc_data["stored"])
+        pending = len(dtc_data["pending"])
+        permanent = len(dtc_data["permanent"])
+        vin = vehicle_profile.get("vin", "")
+        readiness_snapshot = dict(readiness_data)
+        freeze_snapshot = dict(freeze_frame_data)
+
+    monitors = readiness_snapshot.get("monitors") or []
+    incomplete = len([m for m in monitors if not m.get("complete")])
+    ready = len(monitors) - incomplete
+    mode06 = build_mode06_snapshot()
+
+    attention = bool(stored or pending or permanent or incomplete)
+
+    return {
+        "vin": vin,
+        "ecus_responding": 1 if _vehicle_still_connected(get_demo_mode_enabled()) else 0,
+        "stored_dtc_count": stored,
+        "pending_dtc_count": pending,
+        "permanent_dtc_count": permanent,
+        "readiness_ready": ready,
+        "readiness_incomplete": incomplete,
+        "freeze_frame_available": bool(freeze_snapshot.get("available")),
+        "mode06_tests": len(mode06.get("tests") or []),
+        "overall_status": "attention_required" if attention else "all_clear",
+    }
+
+
+def run_full_vehicle_scan():
+    demo_mode = get_demo_mode_enabled()
+
+    with vehicle_scan_lock:
+        vehicle_scan_state["active"] = True
+        vehicle_scan_state["cancelled"] = False
+        vehicle_scan_state["interrupted"] = False
+        vehicle_scan_state["started_at"] = now_time()
+        vehicle_scan_state["finished_at"] = None
+        vehicle_scan_state["current_index"] = -1
+        vehicle_scan_state["summary"] = None
+        vehicle_scan_state["connection_error"] = None
+        vehicle_scan_state["parts"] = [
+            {"id": part_id, "name": name, "status": "waiting", "detail": "", "result": None}
+            for part_id, name in VEHICLE_SCAN_PART_DEFS
+        ]
+
+    with state_lock:
+        dtc_status["scanning"] = True
+        dtc_status["message"] = "Vehicle diagnostic scan in progress..."
+        dtc_status["last_scan"] = now_time()
+
+    try:
+        if not demo_mode and not (connection and connection.is_connected()):
+            with vehicle_scan_lock:
+                vehicle_scan_state["interrupted"] = True
+                vehicle_scan_state["connection_error"] = (
+                    "No OBD connection. Connect the adapter to the vehicle before starting a scan."
+                )
+            with state_lock:
+                dtc_status["message"] = "Fault code scan failed: no OBD connection."
+            return
+
+        for part_id, name in VEHICLE_SCAN_PART_DEFS:
+            if _vehicle_scan_cancelled():
+                _vehicle_scan_set_part(part_id, status="cancelled", result="Scan cancelled.")
+                continue
+
+            with vehicle_scan_lock:
+                already_interrupted = vehicle_scan_state["interrupted"]
+
+            if already_interrupted:
+                _vehicle_scan_set_part(part_id, status="cancelled", result="Not scanned - connection lost.")
+                continue
+
+            if not _vehicle_still_connected(demo_mode):
+                _vehicle_scan_set_part(part_id, status="cancelled", result="Not scanned - connection lost.")
+                with vehicle_scan_lock:
+                    vehicle_scan_state["interrupted"] = True
+                    vehicle_scan_state["connection_error"] = "Vehicle communication was lost during the scan."
+                continue
+
+            _vehicle_scan_set_part(part_id, status="scanning", detail=f"Scanning {name}...")
+
+            try:
+                status, result = VEHICLE_SCAN_RUNNERS[part_id](demo_mode)
+            except Exception as e:
+                log_error(f"Vehicle scan: {name}", e)
+                status, result = "error", friendly_message(e, source=name)
+
+            _vehicle_scan_set_part(part_id, status=status, result=result, detail="")
+
+        with state_lock:
+            dtc_status["has_scan"] = True
+            dtc_status["scanning"] = False
+            dtc_status["last_scan"] = now_time()
+            dtc_status["message"] = "Vehicle diagnostic scan complete."
+
+        summary = _build_vehicle_scan_summary()
+        with vehicle_scan_lock:
+            vehicle_scan_state["summary"] = summary
+    finally:
+        with vehicle_scan_lock:
+            vehicle_scan_state["active"] = False
+            vehicle_scan_state["finished_at"] = now_time()
+        with state_lock:
+            dtc_status["scanning"] = False
+
+
 def get_protocol_name():
     try:
         if connection and connection.is_connected():
@@ -2386,6 +2704,25 @@ def dashboard():
         return "Dashboard could not load. Check the console.", 500
 
 
+@app.route("/api/changelog")
+def api_changelog():
+    seen_version = get_setting("last_seen_changelog_version", "")
+    entries = get_changelog_since(seen_version)
+    return jsonify({
+        "success": True,
+        "current_version": APP_VERSION,
+        "seen_version": seen_version,
+        "should_show": seen_version != APP_VERSION,
+        "changelog": entries,
+    })
+
+
+@app.route("/api/changelog/ack", methods=["POST"])
+def api_changelog_ack():
+    set_setting("last_seen_changelog_version", APP_VERSION)
+    return jsonify({"success": True})
+
+
 @app.route("/api/update-check")
 def api_update_check():
     try:
@@ -2462,7 +2799,7 @@ def api_runtime():
 
 @app.route("/api/report/export.csv")
 def api_report_export_csv():
-    payload = current_scan_payload()
+    payload = apply_export_preset(current_scan_payload(), request.args.get("preset"))
     filename = f"obd-scan-report-{time.strftime('%Y%m%d-%H%M%S')}.csv"
     return Response(
         render_scan_csv(payload),
@@ -2586,7 +2923,7 @@ def api_report():
 
 @app.route("/api/report/export")
 def api_report_export():
-    payload = current_scan_payload()
+    payload = apply_export_preset(current_scan_payload(), request.args.get("preset"))
     export_format = str(request.args.get("format") or "html").lower()
     if export_format == "csv":
         filename = f"obd-scan-report-{time.strftime('%Y%m%d-%H%M%S')}.csv"
@@ -2617,6 +2954,59 @@ def api_codes_scan():
             payload["message"] = friendly_message(e, source="Read DTC")
             payload["dtc_status"] = dict(dtc_status)
         return jsonify(payload), 400
+
+
+@app.route("/api/scan/vehicle/start", methods=["POST"])
+def api_vehicle_scan_start():
+    with vehicle_scan_lock:
+        if vehicle_scan_state["active"]:
+            return jsonify({"success": False, "message": "A vehicle scan is already running.", "scan": dict(vehicle_scan_state)}), 409
+
+    thread = threading.Thread(target=run_full_vehicle_scan, daemon=True)
+    thread.start()
+
+    with vehicle_scan_lock:
+        scan = dict(vehicle_scan_state)
+        scan["parts"] = [dict(part) for part in vehicle_scan_state["parts"]]
+        return jsonify({"success": True, "scan": scan})
+
+
+@app.route("/api/scan/vehicle/status", methods=["GET"])
+def api_vehicle_scan_status():
+    with vehicle_scan_lock:
+        scan = dict(vehicle_scan_state)
+        scan["parts"] = [dict(part) for part in vehicle_scan_state["parts"]]
+    payload = current_scan_payload()
+    payload["success"] = True
+    payload["scan"] = scan
+    return jsonify(payload)
+
+
+@app.route("/api/scan/vehicle/cancel", methods=["POST"])
+def api_vehicle_scan_cancel():
+    with vehicle_scan_lock:
+        was_active = bool(vehicle_scan_state["active"])
+        vehicle_scan_state["cancelled"] = True
+
+        if was_active:
+            for part in vehicle_scan_state["parts"]:
+                if part.get("status") in {"waiting", "scanning"}:
+                    part["status"] = "cancelled"
+                    part["detail"] = ""
+                    part["result"] = "Scan cancelled."
+            message = "Cancelling scan..."
+        else:
+            message = "No active scan to cancel."
+
+        scan = dict(vehicle_scan_state)
+        scan["parts"] = [dict(part) for part in vehicle_scan_state["parts"]]
+
+    with state_lock:
+        if was_active:
+            dtc_status["scanning"] = False
+            dtc_status["message"] = "Vehicle diagnostic scan cancelled."
+
+    return jsonify({"success": True, "message": message, "scan": scan})
 
 
 @app.route("/api/clear", methods=["POST"])
@@ -3213,3 +3603,6 @@ if __name__ == "__main__":
     threading.Thread(target=update_loop, daemon=True).start()
     threading.Thread(target=rpm_update_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+

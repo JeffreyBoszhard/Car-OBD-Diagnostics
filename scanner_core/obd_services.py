@@ -1,4 +1,4 @@
-# Made by The Syndicate Development
+# Made by Boszhard Development
 try:
     import obd
     from obd.OBDResponse import StatusTest

@@ -1,4 +1,4 @@
-# Made by The Syndicate Development
+# Made by Boszhard Development
 def build_scanner_session_state(status, connection_quality=None, connection_hint=None):
     status = dict(status or {})
     quality = dict(connection_quality or {})

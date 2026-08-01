@@ -1,4 +1,4 @@
-<!-- Made by The Syndicate Development -->
+<!-- Made by Boszhard Development -->
 <!DOCTYPE html>
 <html lang="{{ i18n.meta.html_lang }}">
 <head>
@@ -73,13 +73,14 @@
                 {% include "pages/garage.html" %}
                 {% include "pages/service.html" %}
                 {% include "pages/system.html" %}
-                <p class="dashboard-credit">Made by The Syndicate Development</p>
+                <p class="dashboard-credit">Made by Boszhard Development</p>
             </main>
         </div>
     </div>
 </div>
 
 {% include "partials/confirm_dialog.html" %}
+{% include "partials/changelog_dialog.html" %}
 
 <script>
 window.APP_VERSION = {{ app_version | tojson }};
