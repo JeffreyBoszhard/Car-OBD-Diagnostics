@@ -1,4 +1,4 @@
-﻿# Made by Boszhard Development
+# Made by Boszhard Development
 import threading
 import time
 import traceback
@@ -205,7 +205,16 @@ def infer_obd_bus_mode(protocol):
 
 def get_runtime_state():
     return load_json_file(DASHBOARD_RUNTIME_PATH, {
-        "warning_thresholds": {"coolant_temp_c": 100},
+        "warning_thresholds": {
+            "coolant_temp_c": 100,
+            "oil_temp_c": 125,
+            "intake_temp_c": 70,
+            "ecu_voltage_low_v": 11.8,
+            "ecu_voltage_high_v": 15.0,
+            "engine_load_pct": 90,
+            "throttle_pct": 90,
+            "fuel_trim_abs_pct": 12,
+        },
         "fuel_trim_history": [],
     })
 
@@ -443,6 +452,11 @@ POLL_PROFILES = {
         "label": "Safe",
         "limited": True,
         "description": "Safe slows non-critical values and limits polling to core live data.",
+    },
+    "debug": {
+        "label": "Debug Mode",
+        "limited": False,
+        "description": "Debug Mode keeps full polling enabled and preserves the selected profile after reloads.",
     },
 }
 
@@ -3603,6 +3617,7 @@ if __name__ == "__main__":
     threading.Thread(target=update_loop, daemon=True).start()
     threading.Thread(target=rpm_update_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 

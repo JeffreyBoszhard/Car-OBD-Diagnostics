@@ -2690,3 +2690,41 @@ body::before {
         grid-template-columns: 56px minmax(0, 1fr) !important;
     }
 }
+
+@keyframes smoothLimitWarning {
+    0%, 100% { box-shadow: 0 12px 28px rgba(209, 45, 45, .10); }
+    50% { box-shadow: 0 14px 34px rgba(209, 45, 45, .24), 0 0 0 5px rgba(209, 45, 45, .10); }
+}
+
+.quick-metric.is-warning,
+.sensor-row.is-warning {
+    animation: smoothLimitWarning 1.8s ease-in-out infinite;
+    background: linear-gradient(135deg, #fff8f8 0%, #ffecec 100%);
+    border-color: #f0aaaa;
+}
+
+.quick-metric.is-warning span,
+.sensor-row.is-warning .sensor-row-meta {
+    color: #a93636;
+}
+
+.quick-metric strong.is-warning,
+.sensor-row.is-warning .sensor-value {
+    color: #d12d2d;
+}
+
+.sensor-warning-badge {
+    background: #d12d2d;
+    border: 1px solid #b82424;
+    border-radius: 999px;
+    color: #fff;
+    display: inline-flex;
+    font-size: 10px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 6px 9px;
+}
+
+.sensor-warning-badge[hidden] {
+    display: none;
+}

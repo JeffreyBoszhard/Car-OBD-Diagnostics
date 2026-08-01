@@ -1,4 +1,4 @@
-﻿/* Made by Boszhard Development */
+/* Made by Boszhard Development */
 const CONNECTED_POLL_MS = 100;
 const GAUGE_POLL_MS = 35;
 const DISCONNECTED_POLL_MS = 1200;
@@ -77,6 +77,19 @@ const SPEED_DIRECT_SNAP = 0.05;
 const RPM_SMOOTH_RESPONSE = 18;
 const SPEED_SMOOTH_RESPONSE = 16;
 let updateCheckOffline = false;
+let currentWarningThresholds = {};
+
+const DEFAULT_WARNING_THRESHOLDS = {
+    coolant_temp_c: 100,
+    oil_temp_c: 125,
+    intake_temp_c: 70,
+    ecu_voltage_low_v: 11.8,
+    ecu_voltage_high_v: 15.0,
+    engine_load_pct: 90,
+    throttle_pct: 90,
+    fuel_trim_abs_pct: 12,
+};
+
 
 function byId(id) {
     return document.getElementById(id);
@@ -161,14 +174,80 @@ function updateBusModeIndicator(payload) {
     pill.title = payload?.obd_bus_mode?.detail || "";
 }
 
-function applyWarningThresholds(payload) {
-    const thresholds = payload?.runtime_state?.warning_thresholds || {};
-    const coolantLimit = Number(thresholds.coolant_temp_c ?? 100);
-    const coolant = numberFromValue(payload?.vehicle?.coolant_temp?.value);
-    const target = byId("quick-coolant");
-    if (target) {
-        target.classList.toggle("is-warning", Number.isFinite(coolant) && coolant >= coolantLimit);
+function warningThresholdValue(thresholds, key) {
+    const value = Number(thresholds?.[key] ?? DEFAULT_WARNING_THRESHOLDS[key]);
+    return Number.isFinite(value) ? value : DEFAULT_WARNING_THRESHOLDS[key];
+}
+
+function warningMessage(label, value, detail) {
+    const cleanLabel = label || tr("sensor", "Sensor");
+    return tr("warning_limit_triggered", "{label} warning: {value} triggered {detail}.", {
+        label: cleanLabel,
+        value: formatLiveValue(value, "warning_value", String(value)),
+        detail
+    });
+}
+
+function getSensorWarning(sensorKey, rawValue, thresholds = currentWarningThresholds, label = "") {
+    const key = String(sensorKey || "").toLowerCase();
+    const value = numberFromValue(rawValue);
+    if (!Number.isFinite(value)) return null;
+
+    if (key === "coolant_temp") {
+        const limit = warningThresholdValue(thresholds, "coolant_temp_c");
+        return value >= limit ? { detail: `>= ${limit} C`, limit, value, label } : null;
     }
+    if (key === "oil_temp") {
+        const limit = warningThresholdValue(thresholds, "oil_temp_c");
+        return value >= limit ? { detail: `>= ${limit} C`, limit, value, label } : null;
+    }
+    if (key === "intake_temp") {
+        const limit = warningThresholdValue(thresholds, "intake_temp_c");
+        return value >= limit ? { detail: `>= ${limit} C`, limit, value, label } : null;
+    }
+    if (key === "control_voltage" || key === "voltage") {
+        const low = warningThresholdValue(thresholds, "ecu_voltage_low_v");
+        const high = warningThresholdValue(thresholds, "ecu_voltage_high_v");
+        if (value <= low) return { detail: `<= ${low} V`, limit: low, value, label };
+        if (value >= high) return { detail: `>= ${high} V`, limit: high, value, label };
+        return null;
+    }
+    if (key === "engine_load") {
+        const limit = warningThresholdValue(thresholds, "engine_load_pct");
+        return value >= limit ? { detail: `>= ${limit}%`, limit, value, label } : null;
+    }
+    if (key === "throttle") {
+        const limit = warningThresholdValue(thresholds, "throttle_pct");
+        return value >= limit ? { detail: `>= ${limit}%`, limit, value, label } : null;
+    }
+    if (key === "short_fuel_trim_1" || key === "long_fuel_trim_1") {
+        const limit = warningThresholdValue(thresholds, "fuel_trim_abs_pct");
+        return Math.abs(value) >= limit ? { detail: `outside +/-${limit}%`, limit, value, label } : null;
+    }
+
+    return null;
+}
+
+function applyWarningStateToMetric(id, warning) {
+    const valueElement = byId(id);
+    if (!valueElement) return;
+    const card = valueElement.closest(".quick-metric");
+    const active = Boolean(warning);
+    valueElement.classList.toggle("is-warning", active);
+    if (card) {
+        card.classList.toggle("is-warning", active);
+        card.title = active ? warningMessage(warning.label, warning.value, warning.detail) : "";
+    }
+    valueElement.title = active ? warningMessage(warning.label, warning.value, warning.detail) : "";
+}
+
+function applyWarningThresholds(payload) {
+    currentWarningThresholds = payload?.runtime_state?.warning_thresholds || {};
+    const vehicle = payload?.vehicle || {};
+    applyWarningStateToMetric("quick-coolant", getSensorWarning("coolant_temp", vehicle.coolant_temp?.value, currentWarningThresholds, vehicle.coolant_temp?.label || "Coolant temperature"));
+    applyWarningStateToMetric("quick-voltage", getSensorWarning("control_voltage", vehicle.control_voltage?.value || vehicle.voltage?.value, currentWarningThresholds, vehicle.control_voltage?.label || vehicle.voltage?.label || "ECU voltage"));
+    applyWarningStateToMetric("quick-fuel-trim", getSensorWarning("long_fuel_trim_1", vehicle.long_fuel_trim_1?.value, currentWarningThresholds, vehicle.long_fuel_trim_1?.label || "Long fuel trim"));
+    applyWarningStateToMetric("quick-engine-load", getSensorWarning("engine_load", vehicle.engine_load?.value, currentWarningThresholds, vehicle.engine_load?.label || "Engine load"));
 }
 
 function formatLiveValue(value, sensorKey, fallback = tr("quick_no_data", "No Data")) {
@@ -990,7 +1069,7 @@ function updatePollProfileUi(profile = {}) {
 function loadLocalPollProfile() {
     try {
         const stored = window.localStorage.getItem(POLL_PROFILE_STORAGE_KEY);
-        return ["performance", "balanced", "safe"].includes(stored) ? stored : "balanced";
+        return ["performance", "balanced", "safe", "debug"].includes(stored) ? stored : "balanced";
     } catch {
         return "balanced";
     }
@@ -1982,12 +2061,21 @@ function updateLiveData(vehicle) {
         if (!row) {
             row = document.createElement("div");
             row.dataset.key = key;
-            row.innerHTML = `<div class="sensor-row-main"><span class="sensor-label"></span><span class="sensor-row-meta"></span></div><div class="sensor-row-side"><span class="sensor-state-badge">SNSR</span><strong class="sensor-value"></strong></div>`;
+            row.innerHTML = `<div class="sensor-row-main"><span class="sensor-label"></span><span class="sensor-row-meta"></span></div><div class="sensor-row-side"><span class="sensor-warning-badge" hidden>WARN</span><span class="sensor-state-badge">SNSR</span><strong class="sensor-value"></strong></div>`;
             grid.appendChild(row);
         }
         row.className = "sensor-row";
         row.classList.toggle("is-stale", Boolean(item.stale));
         row.classList.toggle("is-no-data", hasNoData);
+        const warning = hasNoData ? null : getSensorWarning(key, item.value, currentWarningThresholds, item.label);
+        const warningBadge = row.querySelector(".sensor-warning-badge");
+        const warningTitle = warning ? warningMessage(item.label, warning.value, warning.detail) : "";
+        row.classList.toggle("is-warning", Boolean(warning));
+        row.title = warningTitle;
+        if (warningBadge) {
+            warningBadge.hidden = !warning;
+            warningBadge.title = warningTitle;
+        }
         row.querySelector(".sensor-label").textContent = item.label;
         row.querySelector(".sensor-row-meta").textContent = hasNoData
             ? tr("sensor_unavailable", "Sensor unavailable right now")
@@ -3685,6 +3773,7 @@ window.addEventListener("load", () => {
     window.requestAnimationFrame(positionGaugeTicks);
 });
 window.addEventListener("resize", positionGaugeTicks);
+
 
 
 

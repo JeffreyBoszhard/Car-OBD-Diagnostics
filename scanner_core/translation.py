@@ -495,6 +495,7 @@ BASE_TRANSLATIONS = {
         "profile_performance": "Performance",
         "profile_balanced": "Balanced",
         "profile_safe": "Safe",
+        "profile_debug": "Debug Mode",
         "poll_profile_copy": "Balanced is recommended. Performance feels faster, Safe reduces ECU and adapter load.",
         "setup_guide_eyebrow": "Adapter Setup Guide",
         "setup_steps": [
@@ -845,6 +846,8 @@ BASE_TRANSLATIONS = {
         "poll_profile_performance_copy": "Performance uses faster polling for a more live feel. Use it with reliable adapters.",
         "poll_profile_balanced_copy": "Balanced is recommended for normal diagnostics.",
         "poll_profile_safe_copy": "Safe slows non-critical values and limits polling to core live data.",
+        "poll_profile_debug_copy": "Debug Mode keeps full live polling enabled and is preserved after reloading the dashboard.",
+        "warning_limit_triggered": "{label} warning: {value} triggered {detail}.",
         "garage_loading": "Loading garage notes...",
         "garage_failed": "Could not load garage notes.",
         "garage_empty": "No garage notes saved yet.",
@@ -1140,6 +1143,7 @@ TRANSLATIONS = {
             "profile_performance": "Performance",
             "profile_balanced": "Balanced",
             "profile_safe": "Safe",
+            "profile_debug": "Debug Mode",
             "poll_profile_copy": "Balanced is aanbevolen. Performance voelt sneller, Safe belast ECU en adapter minder.",
             "setup_guide_eyebrow": "Adapter Setup Guide",
             "setup_steps": [
@@ -1410,6 +1414,8 @@ TRANSLATIONS = {
             "poll_profile_performance_copy": "Performance gebruikt snellere polling voor een live gevoel. Gebruik dit vooral met goede adapters.",
             "poll_profile_balanced_copy": "Balanced is aanbevolen voor normale diagnose.",
             "poll_profile_safe_copy": "Safe vertraagt niet-kritieke waarden en beperkt polling tot kern-live data.",
+            "poll_profile_debug_copy": "Debug Mode houdt volledige live polling aan en blijft geselecteerd na herladen van het dashboard.",
+            "warning_limit_triggered": "{label} waarschuwing: {value} activeerde {detail}.",
             "garage_loading": "Garagenotities laden...",
             "garage_failed": "Garagenotities konden niet worden geladen.",
             "garage_empty": "Nog geen garagenotities opgeslagen.",
@@ -1601,3 +1607,8 @@ def localize_payload(value, lang: str | None):
     if isinstance(value, dict):
         return {key: localize_payload(item, lang) for key, item in value.items()}
     return value
+
+
+
+
+
