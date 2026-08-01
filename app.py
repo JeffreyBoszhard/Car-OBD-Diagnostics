@@ -64,15 +64,25 @@ from scanner_core.report_services import build_purchase_report
 from scanner_core.session_services import build_scanner_session_state
 from scanner_core.storage_services import (
     delete_garage_note as storage_delete_garage_note,
+    delete_garage_note_mysql as storage_delete_garage_note_mysql,
+    delete_scan_snapshot as storage_delete_scan_snapshot,
+    delete_scan_snapshot_mysql as storage_delete_scan_snapshot_mysql,
     db_path_from_file,
     get_recent_garage_notes as storage_get_recent_garage_notes,
+    get_recent_garage_notes_mysql as storage_get_recent_garage_notes_mysql,
     get_recent_scans as storage_get_recent_scans,
+    get_recent_scans_mysql as storage_get_recent_scans_mysql,
     get_setting as storage_get_setting,
+    init_mysql_storage,
     init_storage,
+    mysql_config_from_setup,
     save_garage_note as storage_save_garage_note,
+    save_garage_note_mysql as storage_save_garage_note_mysql,
     save_scan_snapshot as storage_save_scan_snapshot,
+    save_scan_snapshot_mysql as storage_save_scan_snapshot_mysql,
     set_setting as storage_set_setting,
     update_garage_note as storage_update_garage_note,
+    update_garage_note_mysql as storage_update_garage_note_mysql,
 )
 from scanner_core.translation import LANGUAGE_OPTIONS, get_language, get_translations, localize_payload, translate
 
@@ -184,11 +194,20 @@ def get_dashboard_setup():
         "completed": False,
         "storage_type": "sqlite",
         "sqlite_file": str(DB_PATH.name),
-        "mysql": {"host": "", "database": "", "user": ""},
+        "mysql": {"host": "", "port": 3306, "database": "", "user": "", "password": ""},
+        "language": "en",
         "created_at": "",
         "updated_at": "",
     })
 
+
+def active_storage_setup():
+    setup = get_dashboard_setup()
+    return setup if setup.get("storage_type") == "mysql" and setup.get("completed") else {**setup, "storage_type": "sqlite"}
+
+
+def active_mysql_config():
+    return mysql_config_from_setup(active_storage_setup())
 
 def infer_obd_bus_mode(protocol):
     text = str(protocol or "").lower()
@@ -1295,10 +1314,14 @@ def save_scan_snapshot(label):
         f"{status.get('current_port') or 'auto'}"
     )
 
+    if active_storage_setup().get("storage_type") == "mysql":
+        return storage_save_scan_snapshot_mysql(active_mysql_config(), created_at, label, summary, payload)
     return storage_save_scan_snapshot(DB_PATH, created_at, label, summary, payload)
 
 
 def get_recent_garage_notes(limit=SCAN_HISTORY_LIMIT):
+    if active_storage_setup().get("storage_type") == "mysql":
+        return storage_get_recent_garage_notes_mysql(active_mysql_config(), limit)
     return storage_get_recent_garage_notes(DB_PATH, limit)
 
 
@@ -1309,8 +1332,7 @@ def save_garage_note_snapshot(vin, plate, title, mileage, note, attachment=None)
     plate = normalize_garage_plate(plate)
     if attachment:
         payload["garage_attachment"] = attachment
-    return storage_save_garage_note(
-        DB_PATH,
+    args = (
         created_at,
         vin,
         plate,
@@ -1319,15 +1341,19 @@ def save_garage_note_snapshot(vin, plate, title, mileage, note, attachment=None)
         note.strip(),
         payload,
     )
+    if active_storage_setup().get("storage_type") == "mysql":
+        return storage_save_garage_note_mysql(active_mysql_config(), *args)
+    return storage_save_garage_note(DB_PATH, *args)
 
 
 def delete_garage_note(note_id):
+    if active_storage_setup().get("storage_type") == "mysql":
+        return storage_delete_garage_note_mysql(active_mysql_config(), int(note_id))
     return storage_delete_garage_note(DB_PATH, int(note_id))
 
 
 def update_garage_note(note_id, vin, plate, title, mileage, note):
-    return storage_update_garage_note(
-        DB_PATH,
+    args = (
         int(note_id),
         normalize_garage_vin(vin),
         normalize_garage_plate(plate),
@@ -1335,6 +1361,9 @@ def update_garage_note(note_id, vin, plate, title, mileage, note):
         mileage.strip() or "--",
         note.strip(),
     )
+    if active_storage_setup().get("storage_type") == "mysql":
+        return storage_update_garage_note_mysql(active_mysql_config(), *args)
+    return storage_update_garage_note(DB_PATH, *args)
 
 
 EXPORT_PRESETS = {
@@ -1465,7 +1494,15 @@ def render_export_html(payload):
 </html>"""
 
 def get_recent_scans(limit=SCAN_HISTORY_LIMIT):
+    if active_storage_setup().get("storage_type") == "mysql":
+        return storage_get_recent_scans_mysql(active_mysql_config(), limit)
     return storage_get_recent_scans(DB_PATH, limit)
+
+
+def delete_scan_snapshot(scan_id):
+    if active_storage_setup().get("storage_type") == "mysql":
+        return storage_delete_scan_snapshot_mysql(active_mysql_config(), int(scan_id))
+    return storage_delete_scan_snapshot(DB_PATH, int(scan_id))
 
 
 def close_obd_connection():
@@ -2788,17 +2825,34 @@ def api_setup():
         return jsonify({"success": False, "message": "Choose sqlite or mysql."}), 400
     now = time.strftime("%Y-%m-%d %H:%M:%S")
     current = get_dashboard_setup()
+    mysql_input = data.get("mysql") if isinstance(data.get("mysql"), dict) else current.get("mysql", {})
+    mysql = {
+        "host": str(mysql_input.get("host") or "").strip(),
+        "port": int(mysql_input.get("port") or 3306),
+        "database": str(mysql_input.get("database") or "").strip(),
+        "user": str(mysql_input.get("user") or "").strip(),
+        "password": str(mysql_input.get("password") or ""),
+    }
+    language = get_language(data.get("language") or current.get("language") or current_language())
     setup = {
         **current,
         "completed": True,
         "storage_type": storage_type,
         "sqlite_file": str(data.get("sqlite_file") or current.get("sqlite_file") or DB_PATH.name),
-        "mysql": data.get("mysql") if isinstance(data.get("mysql"), dict) else current.get("mysql", {}),
+        "mysql": mysql,
+        "language": language,
         "created_at": current.get("created_at") or now,
         "updated_at": now,
     }
+    if storage_type == "mysql":
+        try:
+            init_mysql_storage(mysql_config_from_setup(setup))
+        except Exception as e:
+            return jsonify({"success": False, "message": str(e)}), 400
     save_json_file(DASHBOARD_SETUP_PATH, setup)
-    return jsonify({"success": True, "setup": setup})
+    response = jsonify({"success": True, "setup": setup})
+    response.set_cookie("obd_lang", language, max_age=31536000, samesite="Lax")
+    return response
 
 @app.route("/api/runtime", methods=["GET", "POST"])
 def api_runtime():
@@ -3417,6 +3471,22 @@ def api_scans_save():
         }), 500
 
 
+@app.route("/api/scans/<int:scan_id>", methods=["DELETE"])
+def api_scans_delete(scan_id):
+    try:
+        deleted = delete_scan_snapshot(scan_id)
+        return jsonify({
+            "success": deleted,
+            "message": "Saved scan deleted." if deleted else "Saved scan not found.",
+            "scans": get_recent_scans(),
+        }), 200 if deleted else 404
+    except Exception as e:
+        log_error("Delete scan snapshot", e)
+        return jsonify({
+            "success": False,
+            "message": "Saved scan could not be deleted."
+        }), 500
+
 @app.route("/api/garage-notes")
 def api_garage_notes():
     try:
@@ -3617,6 +3687,11 @@ if __name__ == "__main__":
     threading.Thread(target=update_loop, daemon=True).start()
     threading.Thread(target=rpm_update_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
+
+
+
 
 
 

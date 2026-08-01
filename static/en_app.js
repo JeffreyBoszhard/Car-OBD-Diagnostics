@@ -77,6 +77,7 @@ const SPEED_DIRECT_SNAP = 0.05;
 const RPM_SMOOTH_RESPONSE = 18;
 const SPEED_SMOOTH_RESPONSE = 16;
 let updateCheckOffline = false;
+const chartHoverState = {};
 let currentWarningThresholds = {};
 
 const DEFAULT_WARNING_THRESHOLDS = {
@@ -1182,9 +1183,22 @@ function pushChartPoint(buffer, value) {
     }
 }
 
-function drawLineChart(canvasId, values, color, maxValueHint = 100) {
+function installChartHover(canvas, canvasId) {
+    if (canvas.dataset.hoverReady) return;
+    canvas.dataset.hoverReady = "1";
+    canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        chartHoverState[canvasId] = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * canvas.width;
+    });
+    canvas.addEventListener("mouseleave", () => {
+        chartHoverState[canvasId] = null;
+    });
+}
+
+function drawLineChart(canvasId, values, color, maxValueHint = 100, label = "") {
     const canvas = byId(canvasId);
     if (!canvas) return;
+    installChartHover(canvas, canvasId);
 
     const ctx = canvas.getContext("2d");
     const width = canvas.width;
@@ -1211,6 +1225,8 @@ function drawLineChart(canvasId, values, color, maxValueHint = 100) {
     const stepX = cleanValues.length > 1 ? width / (cleanValues.length - 1) : width;
 
     const points = cleanValues.map((value, index) => ({
+        value,
+        index,
         x: stepX * index,
         y: height - (Math.max(value, 0) / maxValue) * (height - 12) - 6
     }));
@@ -1238,6 +1254,31 @@ function drawLineChart(canvasId, values, color, maxValueHint = 100) {
     }
 
     ctx.stroke();
+
+    const hoverX = chartHoverState[canvasId];
+    if (Number.isFinite(hoverX) && points.length) {
+        const nearest = points.reduce((best, point) => Math.abs(point.x - hoverX) < Math.abs(best.x - hoverX) ? point : best, points[0]);
+        const text = `${label || canvasId}: ${Math.round(nearest.value * 10) / 10}`;
+        ctx.strokeStyle = "rgba(23, 32, 51, .25)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(nearest.x, 4);
+        ctx.lineTo(nearest.x, height - 4);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(nearest.x, nearest.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = "700 12px Inter, Segoe UI, Arial, sans-serif";
+        const labelWidth = ctx.measureText(text).width + 16;
+        const labelX = Math.min(Math.max(nearest.x - labelWidth / 2, 6), width - labelWidth - 6);
+        const labelY = Math.max(8, nearest.y - 34);
+        ctx.fillStyle = "rgba(23, 32, 51, .92)";
+        ctx.fillRect(labelX, labelY, labelWidth, 24);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(text, labelX + 8, labelY + 16);
+        canvas.title = text;
+    }
 }
 
 function updateCharts(vehicle) {
@@ -1278,12 +1319,12 @@ function renderCharts(now) {
         lastChartSampleAt = now;
     }
 
-    drawLineChart("rpm-chart", rpmChartPoints, "#e14d4d", 5000);
-    drawLineChart("speed-chart", speedChartPoints, "#0d6efd", 160);
-    drawLineChart("coolant-chart", coolantChartPoints, "#0ca678", 130);
-    drawLineChart("voltage-chart", voltageChartPoints, "#f59f00", 16);
-    drawLineChart("engine-load-chart", engineLoadChartPoints, "#845ef7", 100);
-    drawLineChart("throttle-chart", throttleChartPoints, "#12b886", 100);
+    drawLineChart("rpm-chart", rpmChartPoints, "#e14d4d", 5000, "RPM");
+    drawLineChart("speed-chart", speedChartPoints, "#0d6efd", 160, "Speed");
+    drawLineChart("coolant-chart", coolantChartPoints, "#0ca678", 130, "Coolant");
+    drawLineChart("voltage-chart", voltageChartPoints, "#f59f00", 16, "ECU Voltage");
+    drawLineChart("engine-load-chart", engineLoadChartPoints, "#845ef7", 100, "Engine Load");
+    drawLineChart("throttle-chart", throttleChartPoints, "#12b886", 100, "Throttle");
     drawLineChart("o2-chart", o2ChartPoints, "#495057", 1.2);
 }
 
@@ -1376,13 +1417,17 @@ let pausedAt = 0;
 let cursorMs = 0;
 const duration = Math.max(...recording.samples.map(sample => sample.t), 1);
 const grid = document.getElementById('grid');
+const hover = {};
 recording.series.forEach(series => {
   const card = document.createElement('section');
   card.className = 'card';
   card.innerHTML = '<div class="card-head"><strong>' + series.label + '</strong><span class="value" id="value-' + series.key + '">--</span></div><canvas id="chart-' + series.key + '" width="760" height="240"></canvas>';
   grid.appendChild(card);
+  const canvas = document.getElementById('chart-' + series.key);
+  canvas.addEventListener('mousemove', event => { const rect = canvas.getBoundingClientRect(); hover[series.key] = ((event.clientX - rect.left) / Math.max(rect.width, 1)) * canvas.width; });
+  canvas.addEventListener('mouseleave', () => { hover[series.key] = null; });
 });
-function draw(canvas, values, color, maxHint) {
+function draw(canvas, values, color, maxHint, label, hoverX) {
   const ctx = canvas.getContext('2d');
   const width = canvas.width;
   const height = canvas.height;
@@ -1394,8 +1439,10 @@ function draw(canvas, values, color, maxHint) {
   const max = Math.max(maxHint, ...clean, 1);
   const stepX = clean.length > 1 ? width / (clean.length - 1) : width;
   ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.beginPath();
-  clean.forEach((value,index)=>{const x=stepX*index; const y=height-(Math.max(value,0)/max)*(height-16)-8; if(index===0)ctx.moveTo(x,y); else ctx.lineTo(x,y);});
+  const points = clean.map((value,index)=>({value,index,x:stepX*index,y:height-(Math.max(value,0)/max)*(height-16)-8}));
+  points.forEach((point,index)=>{if(index===0)ctx.moveTo(point.x,point.y); else ctx.lineTo(point.x,point.y);});
   ctx.stroke();
+  if(Number.isFinite(hoverX) && points.length){const nearest=points.reduce((best,point)=>Math.abs(point.x-hoverX)<Math.abs(best.x-hoverX)?point:best,points[0]);const text=label + ': ' + (Math.round(nearest.value*10)/10);ctx.strokeStyle='rgba(23,32,51,.25)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(nearest.x,4);ctx.lineTo(nearest.x,height-4);ctx.stroke();ctx.fillStyle=color;ctx.beginPath();ctx.arc(nearest.x,nearest.y,4,0,Math.PI*2);ctx.fill();ctx.font='700 12px Inter,Segoe UI,Arial,sans-serif';const w=ctx.measureText(text).width+16;const x=Math.min(Math.max(nearest.x-w/2,6),width-w-6);const y=Math.max(8,nearest.y-34);ctx.fillStyle='rgba(23,32,51,.92)';ctx.fillRect(x,y,w,24);ctx.fillStyle='#fff';ctx.fillText(text,x+8,y+16);canvas.title=text;}
 }
 function frame(now){
   if(playing){cursorMs = Math.min(now - startedAt, duration);} 
@@ -1404,7 +1451,7 @@ function frame(now){
     const values = visible.map(sample => sample[series.key]);
     const latest = values.length ? values[values.length - 1] : 0;
     document.getElementById('value-' + series.key).textContent = Math.round(latest * 10) / 10;
-    draw(document.getElementById('chart-' + series.key), values, series.color, series.max);
+    draw(document.getElementById('chart-' + series.key), values, series.color, series.max, series.label, hover[series.key]);
   });
   if(cursorMs >= duration) playing = false;
   requestAnimationFrame(frame);
@@ -1608,11 +1655,24 @@ function updateReadiness(readiness) {
     });
 }
 
+function freezeFrameWarningKey(key) {
+    const normalized = String(key || "").toLowerCase();
+    if (normalized === "coolant_temp") return "coolant_temp";
+    if (normalized === "oil_temp") return "oil_temp";
+    if (normalized === "intake_temp") return "intake_temp";
+    if (normalized === "control_voltage" || normalized === "voltage") return "control_voltage";
+    if (normalized === "engine_load") return "engine_load";
+    if (normalized === "throttle") return "throttle";
+    if (normalized === "short_fuel_trim_1") return "short_fuel_trim_1";
+    if (normalized === "long_fuel_trim_1") return "long_fuel_trim_1";
+    return normalized;
+}
+
 function updateFreezeFrame(freezeFrame) {
     const container = byId("freeze-frame-grid");
     if (!container) return;
 
-    const signature = JSON.stringify(freezeFrame || {});
+    const signature = JSON.stringify(freezeFrame || {}) + JSON.stringify(currentWarningThresholds || {});
     if (signature === lastFreezeFrameSignature) {
         return;
     }
@@ -1639,16 +1699,29 @@ function updateFreezeFrame(freezeFrame) {
 
     entries.forEach(([key, value], index) => {
         let row = container.querySelector(`[data-key="${key}"]`);
+        const label = key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+        const warning = getSensorWarning(freezeFrameWarningKey(key), value, currentWarningThresholds, label);
+        const warningTitle = warning ? warningMessage(label, warning.value, warning.detail) : "";
         if (!row) {
             row = document.createElement("div");
-            row.className = "sensor-row";
+            row.className = "sensor-row freeze-frame-row";
             row.dataset.key = key;
-            row.innerHTML = `<span class="sensor-label"></span><strong class="sensor-value"></strong>`;
+            row.innerHTML = `<span class="sensor-label"></span><span class="sensor-warning-badge" hidden>WARN</span><strong class="sensor-value"></strong>`;
             container.appendChild(row);
         }
+        row.className = "sensor-row freeze-frame-row";
+        row.classList.toggle("is-warning", Boolean(warning));
+        row.title = warningTitle || label;
         row.style.animationDelay = `${Math.min(index * 18, 220)}ms`;
-        row.querySelector(".sensor-label").textContent = key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+        row.querySelector(".sensor-label").textContent = label;
+        row.querySelector(".sensor-label").title = label;
+        const badge = row.querySelector(".sensor-warning-badge");
+        if (badge) {
+            badge.hidden = !warning;
+            badge.title = warningTitle;
+        }
         row.querySelector(".sensor-value").textContent = value;
+        row.querySelector(".sensor-value").title = String(value ?? "");
     });
 }
 
@@ -2061,7 +2134,7 @@ function updateLiveData(vehicle) {
         if (!row) {
             row = document.createElement("div");
             row.dataset.key = key;
-            row.innerHTML = `<div class="sensor-row-main"><span class="sensor-label"></span><span class="sensor-row-meta"></span></div><div class="sensor-row-side"><span class="sensor-warning-badge" hidden>WARN</span><span class="sensor-state-badge">SNSR</span><strong class="sensor-value"></strong></div>`;
+            row.innerHTML = `<div class="sensor-row-main"><span class="sensor-label"></span><span class="sensor-row-meta"></span></div><div class="sensor-row-badges"><span class="sensor-warning-badge" hidden>WARN</span><span class="sensor-state-badge">SNSR</span></div><strong class="sensor-value"></strong>`;
             grid.appendChild(row);
         }
         row.className = "sensor-row";
@@ -2077,6 +2150,7 @@ function updateLiveData(vehicle) {
             warningBadge.title = warningTitle;
         }
         row.querySelector(".sensor-label").textContent = item.label;
+        row.querySelector(".sensor-label").title = item.label;
         row.querySelector(".sensor-row-meta").textContent = hasNoData
             ? tr("sensor_unavailable", "Sensor unavailable right now")
             : item.stale
@@ -2159,7 +2233,7 @@ function updateCodes(elementId, codes) {
 
         code.append(title, meta, description, action);
 
-        if (item.code_type) {
+        if (item.code_type && String(item.code_type).toLowerCase() !== "generic") {
             const typeBadge = document.createElement("span");
             typeBadge.className = "code-type-badge";
             typeBadge.textContent = item.code_type;
@@ -3179,7 +3253,20 @@ function renderScanHistory(scans) {
         detail.className = "history-health";
         detail.innerHTML = `<strong>${displayValue(payload.health?.score, "--")}</strong><p>${tr("history_health_score", "Health score")}</p>`;
 
-        row.append(meta, detail);
+        const actions = document.createElement("div");
+        actions.className = "history-row-actions";
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "history-delete-button";
+        deleteButton.type = "button";
+        deleteButton.textContent = tr("delete", "Delete");
+        deleteButton.title = tr("scan_delete_title", "Delete saved scan");
+        deleteButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            deleteSavedScan(scan.id);
+        });
+        actions.append(deleteButton);
+
+        row.append(meta, detail, actions);
         row.addEventListener("click", () => {
             history.querySelectorAll(".history-row").forEach((other) => other.classList.remove("is-selected"));
             row.classList.add("is-selected");
@@ -3189,6 +3276,25 @@ function renderScanHistory(scans) {
     });
 }
 
+async function deleteSavedScan(scanId) {
+    if (!scanId) return;
+    const confirmed = window.confirm(tr("scan_delete_message", "This saved scan will be permanently removed from the database."));
+    if (!confirmed) return;
+    try {
+        const response = await fetch(`/api/scans/${encodeURIComponent(scanId)}`, { method: "DELETE" });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
+        renderScanHistory(result.scans || []);
+        const detail = byId("scan-history-detail");
+        if (detail) {
+            detail.className = "history-detail-empty";
+            detail.textContent = tr("history_detail_empty", "Click a saved scan to open its snapshot.");
+        }
+    } catch (error) {
+        console.error(error);
+        window.alert(error.message || tr("scan_delete_failed", "Saved scan could not be deleted."));
+    }
+}
 function renderScanHistoryDetail(scan) {
     const container = byId("scan-history-detail");
     if (!container) return;
@@ -3625,13 +3731,28 @@ function initPollProfileButtons() {
     });
 }
 
+function hydrateDashboardSetup(setup = {}) {
+    const storage = String(setup.storage_type || "sqlite");
+    const storageInput = document.querySelector(`input[name="setup-storage"][value="${storage}"]`);
+    if (storageInput) storageInput.checked = true;
+    const language = byId("setup-language");
+    if (language && setup.language) language.value = setup.language;
+    const mysql = setup.mysql || {};
+    if (byId("setup-mysql-host")) byId("setup-mysql-host").value = mysql.host || "";
+    if (byId("setup-mysql-port")) byId("setup-mysql-port").value = mysql.port || 3306;
+    if (byId("setup-mysql-database")) byId("setup-mysql-database").value = mysql.database || "";
+    if (byId("setup-mysql-user")) byId("setup-mysql-user").value = mysql.user || "";
+}
+
 async function initDashboardSetup() {
     const modal = byId("setup-modal");
     if (!modal || !document.body?.dataset?.dashboardPage) return;
     try {
         const response = await fetch("/api/setup");
         const setup = await response.json();
+        hydrateDashboardSetup(setup);
         modal.hidden = Boolean(setup.completed);
+        initSetupStorageToggle();
     } catch {
         modal.hidden = false;
     }
@@ -3654,19 +3775,36 @@ function initSetupStorageToggle() {
 
 async function saveDashboardSetup() {
     const storage = document.querySelector('input[name="setup-storage"]:checked')?.value || "sqlite";
+    const language = byId("setup-language")?.value || "en";
+    const resultElement = byId("setup-result");
+    const button = byId("setup-save-button");
     const payload = {
         storage_type: storage,
+        language,
         mysql: {
             host: byId("setup-mysql-host")?.value || "",
+            port: Number(byId("setup-mysql-port")?.value || 3306),
             database: byId("setup-mysql-database")?.value || "",
-            user: byId("setup-mysql-user")?.value || ""
+            user: byId("setup-mysql-user")?.value || "",
+            password: byId("setup-mysql-password")?.value || ""
         }
     };
-    const response = await fetch("/api/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    const result = await response.json();
-    if (response.ok && result.success) {
+    if (button) button.disabled = true;
+    if (resultElement) resultElement.textContent = tr("setup_saving", "Saving setup...");
+    try {
+        const response = await fetch("/api/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
+        setLanguageCookie(language);
+        if (resultElement) resultElement.textContent = tr("setup_saved", "Setup saved.");
         const modal = byId("setup-modal");
         if (modal) modal.hidden = true;
+        window.location.reload();
+    } catch (error) {
+        console.error(error);
+        if (resultElement) resultElement.textContent = error.message || tr("setup_failed", "Setup could not be saved.");
+    } finally {
+        if (button) button.disabled = false;
     }
 }
 
@@ -3773,6 +3911,14 @@ window.addEventListener("load", () => {
     window.requestAnimationFrame(positionGaugeTicks);
 });
 window.addEventListener("resize", positionGaugeTicks);
+
+
+
+
+
+
+
+
 
 
 

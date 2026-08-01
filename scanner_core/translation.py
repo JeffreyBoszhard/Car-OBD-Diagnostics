@@ -516,6 +516,7 @@ BASE_TRANSLATIONS = {
         "cruise": "Cruise",
         "heavy_load": "Heavy Load",
         "fault_present": "Fault Present",
+        "everything_wrong": "Everything Wrong",
         "demo_preset_copy": "Pick a preset and the simulated live data will keep updating automatically.",
     },
     "system": {
@@ -783,6 +784,14 @@ BASE_TRANSLATIONS = {
         "save_scan_saving": "Saving current scan to database...",
         "save_scan_failed": "Could not save the scan.",
         "scan_saved_at": "{label} saved at {time}.",
+        "delete": "Delete",
+        "scan_delete_title": "Delete saved scan",
+        "scan_delete_message": "This saved scan will be permanently removed from the database.",
+        "scan_delete_failed": "Saved scan could not be deleted.",
+        "history_detail_empty": "Click a saved scan to open its snapshot.",
+        "setup_saving": "Saving setup...",
+        "setup_saved": "Setup saved.",
+        "setup_failed": "Setup could not be saved.",
         "report_snapshot_label": "Manual report snapshot",
         "report_summary_empty": "No report summary available yet.",
         "report_details_empty": "No report details available yet.",
@@ -1164,6 +1173,7 @@ TRANSLATIONS = {
             "cruise": "Cruise",
             "heavy_load": "Hoge Belasting",
             "fault_present": "Fout Aanwezig",
+            "everything_wrong": "Alles Fout",
             "demo_preset_copy": "Kies een preset en de gesimuleerde live data blijft automatisch updaten.",
         },
         "system": {
@@ -1351,6 +1361,14 @@ TRANSLATIONS = {
             "save_scan_saving": "Huidige scan opslaan in database...",
             "save_scan_failed": "Scan kon niet worden opgeslagen.",
             "scan_saved_at": "{label} opgeslagen om {time}.",
+            "delete": "Verwijder",
+            "scan_delete_title": "Opgeslagen scan verwijderen",
+            "scan_delete_message": "Deze opgeslagen scan wordt permanent uit de database verwijderd.",
+            "scan_delete_failed": "Opgeslagen scan kon niet worden verwijderd.",
+            "history_detail_empty": "Klik op een opgeslagen scan om de snapshot te openen.",
+            "setup_saving": "Setup opslaan...",
+            "setup_saved": "Setup opgeslagen.",
+            "setup_failed": "Setup kon niet worden opgeslagen.",
             "report_snapshot_label": "Handmatige rapportsnapshot",
             "report_summary_empty": "Nog geen rapportsamenvatting beschikbaar.",
             "report_details_empty": "Nog geen rapportdetails beschikbaar.",
@@ -1607,6 +1625,11 @@ def localize_payload(value, lang: str | None):
     if isinstance(value, dict):
         return {key: localize_payload(item, lang) for key, item in value.items()}
     return value
+
+
+
+
+
 
 
 

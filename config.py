@@ -1,5 +1,7 @@
-﻿# Made by Boszhard Development
+# Made by Boszhard Development
 """Configuration for the OBD Scanner.
+
+User note: this file controls scanner version, polling speed, OBD connection behavior, update checking and external lookup endpoints. Change values carefully, restart the scanner after editing, and keep APP_VERSION aligned with changelog.py when making a real release.
 
 All interval values are in seconds.
 
@@ -10,7 +12,7 @@ missing values, or the dashboard feels noisy, increase the intervals a little.
 
 # Version shown in the dashboard, sidebar and exported HTML reports.
 # Bump this and add an entry to changelog.py whenever a change is made.
-APP_VERSION = "v0.6.0"
+APP_VERSION = "v0.6.1"
 
 # Changelog entries live in changelog.py. Bump APP_VERSION and add a new entry there whenever a change is made.
 
@@ -77,6 +79,9 @@ UPDATE_DOWNLOAD_URL = "https://github.com/JeffreyBoszhard/Car-OBD-Diagnostics"
 # but the request can stay open longer.
 # If the timeout is reached, no update popup is shown and the app continues normally.
 UPDATE_CHECK_TIMEOUT = 2.5
+
+
+
 
 
 

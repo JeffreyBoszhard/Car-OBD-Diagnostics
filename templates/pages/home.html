@@ -1,16 +1,10 @@
-﻿<!-- Made by Boszhard Development -->
+<!-- Made by Boszhard Development -->
 <section class="page-screen page-home is-active" data-page="dashboard">
     <div class="scanner-home-stage">
-        <header class="scanner-home-header">
-            <div>
-                <p class="eyebrow">{{ i18n.partials.sidebar.brand_eyebrow }}</p>
-                <h2>{{ i18n.partials.sidebar.brand_name }}</h2>
-            </div>
-            <div class="scanner-home-status">
-                <span id="home-shell-status">OBD-II</span>
-                <strong>{{ app_version }}</strong>
-            </div>
-        </header>
+        <div class="scanner-home-version" aria-label="OBD scanner version">
+            <span>OBD-II</span>
+            <strong>{{ app_version }}</strong>
+        </div>
 
         <section class="tablet-launch-grid" aria-label="{{ i18n.partials.sidebar.brand_eyebrow }}">
             {% for card in i18n.home.cards %}
@@ -25,3 +19,4 @@
         </section>
     </div>
 </section>
+

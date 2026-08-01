@@ -1,10 +1,11 @@
-﻿# Car-OBD-Diagnostics
+# Made by Boszhard Development
+# Car-OBD-Diagnostics
 
 A Python and Flask based OBD-II workshop scanner dashboard for reading live ECU data, diagnostic trouble codes, readiness information, freeze-frame data, vehicle details and local garage notes through a USB OBD adapter.
 
 The dashboard is designed like a rugged workshop scan tablet: dark diagnostic panels, individual pages for each scanner function, consistent pill-style buttons, English/Dutch language support, local SQLite storage, demo mode and update/changelog popups.
 
-Current version: `v0.6.0`
+Current version: `v0.6.1`
 
 ## Features
 
@@ -184,7 +185,7 @@ Garage notes support:
 Refresh timings, update URLs and history limits can be adjusted in `config.py`.
 
 ```python
-APP_VERSION = "v0.6.0"
+APP_VERSION = "v0.6.1"
 POLL_INTERVAL = 0.1
 RPM_POLL_INTERVAL = 0.05
 OBD_CONNECT_TIMEOUT = 0.6
@@ -306,6 +307,8 @@ This project is provided for educational and personal diagnostic use. Use it at 
 This project is licensed under the GNU General Public License v3.0.
 
 You may use, modify, share and distribute this project under the terms of the GPLv3. If you distribute modified versions, you must also provide the source code under the same license.
+
+
 
 
 

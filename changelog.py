@@ -1,6 +1,45 @@
 # Made by Boszhard Development
-"""Dashboard changelog entries and helpers."""
+"""Dashboard changelog entries and helpers.
+
+User note: do not remove this file. The scanner reads these entries to show the in-app changelog popup after an update. Add only user-facing changes here, newest version first.
+"""
 CHANGELOG = [
+    {
+        "version": "v0.6.1",
+        "date": "2026-08-01",
+        "changes": [
+            "Demo Fault Randomizer",
+            "Fault Present demo scans now return a randomized number of demo faults each time.",
+            "Fault Present always returns at least 2 faults and can now return up to 9 faults in one scan.",
+            "Random demo faults are selected from the 100-code demo fault pool.",
+            "Stored, pending and permanent demo fault groups now vary based on the random fault count.",
+            "Live Sensor Stream Polish",
+            "Improved live sensor card sizing and spacing so labels, badges and values stay readable instead of collapsing or stacking vertically.",
+            "Improved warning sensor cards for better spacing between WARN badges, SNSR badges and values.",
+            "Shortened sensor and navigation labels now show their full text when hovered.",
+            "Freeze-frame values now use the same red warning styling when captured values cross configured limits.",
+            "Improved the sidebar scanner identity card with clearer OBD scanner branding and ready status.",
+            "Rebuilt the home launcher into a larger centered 3 by 3 tablet menu so all scanner modules line up evenly.",
+            "Removed the large home header bar and pinned the version badge to the bottom-right corner.",
+            "Centered the home launcher grid vertically and horizontally on the tablet screen.",
+            "Aligned the home version badge with the bottom credit line and pinned it flush to the right edge.",
+            "Added the current app version to the sidebar OBD identity tile.",
+            "Fixed the sidebar OBD identity tile so the version text is visible beside the OBD mark.",
+            "Improved sidebar version alignment so it sits centered beside the OBD mark.",
+            "Live Graph Hover Values",
+            "Live dashboard graphs now show the nearest value when hovering over the line.",
+            "Exported graph playback HTML now also shows hover values on every chart.",
+            "Fault Code Layout",
+            "Rebalanced fault code card height and spacing so large code lists stay readable without text overlap.",
+            "Saved Scan History",
+            "Added delete controls for saved scan history entries.",
+            "Deleting a saved scan removes it from the active database backend and refreshes the history list.",
+            "Setup and Storage",
+            "Added language selection to the first dashboard setup popup.",
+            "MySQL setup now validates the connection and creates the required scan and garage note tables before saving.",
+            "Saved scans and garage notes now use MySQL when MySQL storage is selected.",
+        ],
+    },
     {
         "version": "v0.6.0",
         "date": "2026-08-01",
@@ -93,6 +132,21 @@ def is_entry_newer(entry, seen_version):
 def get_changelog_since(seen_version):
     entries = [entry for entry in CHANGELOG if is_entry_newer(entry, seen_version)]
     return entries or CHANGELOG[:1]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

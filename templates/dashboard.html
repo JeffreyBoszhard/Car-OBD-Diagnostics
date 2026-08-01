@@ -32,13 +32,20 @@
         <p class="panel-copy">This is saved in <strong>dashboard_setup.json</strong>, not in the database.</p>
         <div class="setup-options">
             <label class="setup-option"><input type="radio" name="setup-storage" value="sqlite" checked> <span><strong>SQLite</strong><small>Local .db file on this device</small></span></label>
-            <label class="setup-option"><input type="radio" name="setup-storage" value="mysql"> <span><strong>MySQL</strong><small>External database for later multi-device/server use</small></span></label>
+            <label class="setup-option"><input type="radio" name="setup-storage" value="mysql"> <span><strong>MySQL</strong><small>External database for shared scan and garage history</small></span></label>
         </div>
+        <label class="setup-field-label" for="setup-language">Language</label>
+        <select id="setup-language" class="setup-select">
+            {% for option in language_options %}<option value="{{ option.code }}" {% if option.code == language %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
+        </select>
         <div id="setup-mysql-fields" class="setup-mysql-fields" hidden>
             <input id="setup-mysql-host" type="text" placeholder="MySQL host">
+            <input id="setup-mysql-port" type="number" min="1" max="65535" value="3306" placeholder="Port">
             <input id="setup-mysql-database" type="text" placeholder="Database name">
             <input id="setup-mysql-user" type="text" placeholder="User">
+            <input id="setup-mysql-password" type="password" placeholder="Password">
         </div>
+        <p id="setup-result" class="setup-result"></p>
         <button id="setup-save-button" class="secondary-action" type="button">Save setup</button>
     </div>
 </div>
@@ -90,3 +97,4 @@ window.APP_I18N = {{ js_translations | tojson }};
 <script src="/static/{{ 'nl_app.js' if lang == 'nl' else 'en_app.js' }}?v={{ app_version }}"></script>
 </body>
 </html>
+

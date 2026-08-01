@@ -1,10 +1,23 @@
 # Made by Boszhard Development
 import math
+import random
 import time
 
 from scanner_core.dtc_catalog import enrich_dtc
 
 
+DEMO_FAULT_CODES = [
+    "P0010", "P0011", "P0012", "P0016", "P0030", "P0036", "P0100", "P0101", "P0102", "P0103",
+    "P0104", "P0105", "P0106", "P0110", "P0112", "P0113", "P0115", "P0116", "P0117", "P0118",
+    "P0120", "P0121", "P0122", "P0123", "P0125", "P0128", "P0130", "P0131", "P0132", "P0133",
+    "P0134", "P0135", "P0136", "P0137", "P0138", "P0139", "P0140", "P0141", "P0170", "P0171",
+    "P0172", "P0174", "P0175", "P0180", "P0190", "P0191", "P0192", "P0193", "P0200", "P0201",
+    "P0202", "P0203", "P0204", "P0217", "P0300", "P0301", "P0302", "P0303", "P0304", "P0305",
+    "P0306", "P0307", "P0308", "P0309", "P0310", "P0311", "P0312", "P0313", "P0314", "P0325",
+    "P0335", "P0340", "P0350", "P0351", "P0352", "P0353", "P0354", "P0400", "P0401", "P0402",
+    "P0403", "P0404", "P0420", "P0430", "P0440", "P0441", "P0442", "P0443", "P0446", "P0455",
+    "P0456", "P0457", "P0500", "P0505", "P0506", "P0507", "P0560", "P0562", "P0563", "P0600",
+]
 DEMO_PRESETS = {
     "idle": {
         "label": "Idle",
@@ -23,8 +36,13 @@ DEMO_PRESETS = {
     },
     "fault_present": {
         "label": "Fault present",
-        "description": "MIL-on style scenario with rougher trims, incomplete readiness and demo fault codes.",
+        "description": "MIL-on style scenario with random demo fault codes on every scan.",
         "default_speed_kmh": 42.0,
+    },
+    "everything_wrong": {
+        "label": "Everything wrong",
+        "description": "Extreme demo scenario with overheating, unsafe voltage, high load, bad trims and many fault codes.",
+        "default_speed_kmh": 24.0,
     },
 }
 
@@ -154,6 +172,31 @@ def build_demo_vehicle_snapshot(speed_kmh=0.0, preset="idle"):
         warmups = "1"
         distance_since_clear = "14 km"
         time_since_clear = "22 min"
+    elif preset_id == "everything_wrong":
+        base_idle_rpm = 1420.0 + math.sin(now * 5.6) * 210.0
+        load_factor = speed * 34.0
+        transient = math.sin(now * 7.4) * 420.0
+        coolant = round(124.0 + abs(math.sin(now * 0.9)) * 8.0, 1)
+        load = round(96.0 + abs(math.sin(now * 2.8)) * 3.8, 1)
+        fuel_trim = round(24.0 + math.sin(now * 1.7) * 4.5, 1)
+        voltage = round(10.7 + math.sin(now * 1.1) * 0.35, 2)
+        maf = round(31.0 + abs(math.sin(now * 2.9)) * 9.5, 2)
+        throttle = round(94.0 + abs(math.sin(now * 2.2)) * 5.0, 1)
+        fuel_status = "Open loop / fault"
+        oil_temp = round(132.0 + abs(math.sin(now * 0.6)) * 7.0, 1)
+        intake_temp = round(76.0 + abs(math.sin(now * 0.8)) * 8.0, 1)
+        ambient_temp = 36
+        intake_pressure = 89
+        fuel_pressure = 188
+        barometric_pressure = 96
+        timing_advance = -4
+        short_trim = round(-22.0 + math.sin(now * 1.4) * 5.0, 1)
+        fuel_level = 4
+        runtime = "02:48:39"
+        distance_mil = "168 km"
+        warmups = "0"
+        distance_since_clear = "0 km"
+        time_since_clear = "0 min"
     else:
         base_idle_rpm = 820.0 + math.sin(now * 2.4) * 25.0
         load_factor = speed * 26.0
@@ -230,6 +273,26 @@ def build_demo_readiness(preset="idle"):
             ],
         }
 
+    if preset_id == "everything_wrong":
+        return {
+            "available": True,
+            "mil": True,
+            "dtc_count": len(DEMO_FAULT_CODES),
+            "ignition_type": "Spark",
+            "monitors": [
+                {"name": "Misfire", "available": True, "complete": False},
+                {"name": "Fuel System", "available": True, "complete": False},
+                {"name": "Components", "available": True, "complete": False},
+                {"name": "Catalyst", "available": True, "complete": False},
+                {"name": "Heated Catalyst", "available": True, "complete": False},
+                {"name": "Evap System", "available": True, "complete": False},
+                {"name": "Secondary Air", "available": True, "complete": False},
+                {"name": "Oxygen Sensor", "available": True, "complete": False},
+                {"name": "Oxygen Sensor Heater", "available": True, "complete": False},
+                {"name": "EGR / VVT", "available": True, "complete": False},
+            ],
+        }
+
     if preset_id == "heavy_load":
         monitors = [
             {"name": "Misfire", "available": True, "complete": True},
@@ -261,16 +324,36 @@ def build_demo_readiness(preset="idle"):
 def build_demo_freeze_frame(preset="idle"):
     preset_id = normalize_demo_preset(preset)
 
+    if preset_id == "everything_wrong":
+        return {
+            "available": True,
+            "values": {
+                "trigger_code": "P0217",
+                "rpm": "3890 RPM",
+                "speed": "24 km/h",
+                "coolant_temp": "129 C",
+                "oil_temp": "136 C",
+                "intake_temp": "81 C",
+                "engine_load": "99 %",
+                "throttle": "98 %",
+                "short_fuel_trim_1": "-24 %",
+                "long_fuel_trim_1": "27 %",
+                "control_voltage": "10.8 V",
+                "fuel_pressure": "188 kPa",
+            },
+        }
+
     if preset_id != "fault_present":
         return {
             "available": False,
             "values": {},
         }
 
+    trigger_code = random.choice(DEMO_FAULT_CODES)
     return {
         "available": True,
         "values": {
-            "trigger_code": "P0301",
+            "trigger_code": trigger_code,
             "rpm": "1280 RPM",
             "speed": "42 km/h",
             "coolant_temp": "88 C",
@@ -284,6 +367,17 @@ def build_demo_freeze_frame(preset="idle"):
 def build_demo_dtc_snapshot(preset="idle"):
     preset_id = normalize_demo_preset(preset)
 
+    if preset_id == "everything_wrong":
+        stored = [enrich_dtc(code, "") for code in DEMO_FAULT_CODES[:70]]
+        pending = [enrich_dtc(code, "") for code in DEMO_FAULT_CODES[70:90]]
+        permanent = [enrich_dtc(code, "") for code in DEMO_FAULT_CODES[90:]]
+        return {
+            "stored": stored,
+            "pending": pending,
+            "permanent": permanent,
+            "message": f"Demo code scan completed. {len(stored) + len(pending) + len(permanent)} code(s) found in Everything Wrong mode.",
+        }
+
     if preset_id != "fault_present":
         return {
             "stored": [],
@@ -292,11 +386,16 @@ def build_demo_dtc_snapshot(preset="idle"):
             "message": "Demo code scan completed. No fault codes found for this preset.",
         }
 
+    fault_count = random.randint(2, 9)
+    sample = random.sample(DEMO_FAULT_CODES, k=fault_count)
+    stored = [enrich_dtc(code, "") for code in sample[:2]]
+    pending = [enrich_dtc(code, "") for code in sample[2:4]]
+    permanent = [enrich_dtc(code, "") for code in sample[4:]]
     return {
-        "stored": [enrich_dtc("P0171", "")],
-        "pending": [enrich_dtc("P0301", "")],
-        "permanent": [],
-        "message": "Demo code scan completed. 2 code(s) found.",
+        "stored": stored,
+        "pending": pending,
+        "permanent": permanent,
+        "message": f"Demo code scan completed. {len(sample)} random code(s) found.",
     }
 
 
@@ -323,3 +422,9 @@ def build_demo_vehicle_profile():
         "plate_last_update": None,
         "rdw": {},
     }
+
+
+
+
+
+

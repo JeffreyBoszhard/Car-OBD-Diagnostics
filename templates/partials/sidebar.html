@@ -1,10 +1,10 @@
 <!-- Made by Boszhard Development -->
 <header class="tablet-sidebar">
     <div class="tablet-brand">
-        <div class="brand-icon">OBD</div>
+        <div class="brand-icon">OBD</div><div class="brand-version"><span>OBD-II</span><strong>{{ app_version }}</strong></div>
         <div>
             <p class="eyebrow">{{ i18n.partials.sidebar.brand_eyebrow }}</p>
-            <strong>{{ i18n.partials.sidebar.brand_name }}</strong>
+            <strong title="{{ i18n.partials.sidebar.brand_name }}">{{ i18n.partials.sidebar.brand_name }}</strong>
         </div>
     </div>
 
@@ -12,24 +12,24 @@
         <a class="module-button is-active" href="#dashboard" data-page="dashboard">
             <span class="module-icon">HOME</span>
             <span class="module-copy">
-                <span class="module-label">{{ i18n.partials.sidebar.nav_home }}</span>
-                <small>{{ i18n.partials.sidebar.nav_home_small }}</small>
+                <span class="module-label" title="{{ i18n.partials.sidebar.nav_home }}">{{ i18n.partials.sidebar.nav_home }}</span>
+                <small title="{{ i18n.partials.sidebar.nav_home_small }}">{{ i18n.partials.sidebar.nav_home_small }}</small>
             </span>
         </a>
         {% for card in i18n.home.cards %}
         <a class="module-button" href="#{{ card.page }}" data-page="{{ card.page }}" data-tone="{{ 'buy' if card.page == 'purchase-checklist' else card.page }}">
             <span class="module-icon">{{ card.icon }}</span>
             <span class="module-copy">
-                <span class="module-label">{{ card.title }}</span>
-                <small>{{ card.description }}</small>
+                <span class="module-label" title="{{ card.title }}">{{ card.title }}</span>
+                <small title="{{ card.description }}">{{ card.description }}</small>
             </span>
         </a>
         {% endfor %}
         <a class="module-button" href="#history" data-page="history" data-tone="system">
             <span class="module-icon">HIS</span>
             <span class="module-copy">
-                <span class="module-label">{{ i18n.history.title }}</span>
-                <small>{{ i18n.history.eyebrow }}</small>
+                <span class="module-label" title="{{ i18n.history.title }}">{{ i18n.history.title }}</span>
+                <small title="{{ i18n.history.eyebrow }}">{{ i18n.history.eyebrow }}</small>
             </span>
         </a>
     </nav>
@@ -56,3 +56,5 @@
         </div>
     </div>
 </header>
+
+
