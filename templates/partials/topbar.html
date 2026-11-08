@@ -1,4 +1,3 @@
-<!-- Made by Boszhard Development -->
 <header class="topbar">
     <div class="topbar-intro">
         <p class="eyebrow">{{ i18n.partials.topbar.eyebrow }}</p>
@@ -30,10 +29,11 @@
         </div>
 
         <div class="topbar-control-group">
+            <span id="stream-indicator" class="stream-indicator" data-state="connecting" aria-live="polite">
+                <span class="stream-dot" aria-hidden="true"></span>
+                <span class="stream-label">{{ i18n.partials.topbar.live_data }}</span>
+            </span>
             <button id="freeze-button" class="secondary-action compact-action topbar-action-button" type="button">{{ i18n.partials.topbar.freeze }}</button>
-            <button id="safe-mode-button" class="primary-toggle topbar-action-button is-active" type="button" aria-pressed="true">
-                {{ i18n.partials.topbar.safe_mode_on }}
-            </button>
         </div>
     </div>
 </header>

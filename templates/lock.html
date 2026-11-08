@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="{{ i18n.meta.html_lang }}" {% if theme in ("light", "dark") %}data-theme="{{ theme }}"{% endif %}>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>OBD Scanner {{ app_version }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;700&display=swap">
+    <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
+</head>
+<body class="lock-page">
+    <main class="lock-shell">
+        <div class="lock-card">
+            <div class="lock-mark" aria-hidden="true">
+                <span class="lock-mark-ring"></span>
+                <span class="lock-mark-text">OBD</span>
+            </div>
+            <p class="eyebrow">Car OBD Diagnostics {{ app_version }}</p>
+            <h1>Scanner locked</h1>
+            <p class="lock-copy">This scanner is protected with a PIN. Enter it to open the dashboard on this device.</p>
+
+            <form id="lock-form" class="lock-form" autocomplete="off">
+                <label class="lock-label" for="lock-pin">Dashboard PIN</label>
+                <input id="lock-pin" class="lock-input" type="password" inputmode="numeric" autocomplete="current-password"
+                       placeholder="····" aria-describedby="lock-result" required>
+                <button id="lock-submit" class="primary-action lock-submit" type="submit">Unlock</button>
+                <p id="lock-result" class="lock-result" role="status" aria-live="polite"></p>
+            </form>
+
+            <p class="lock-foot">The PIN is set with <code>OBD_PIN</code> in the environment, or <code>ACCESS_PIN</code> in <code>config.py</code>. Leave it empty to disable this screen.</p>
+        </div>
+    </main>
+
+<script>
+(function () {
+    const form = document.getElementById("lock-form");
+    const input = document.getElementById("lock-pin");
+    const result = document.getElementById("lock-result");
+    const button = document.getElementById("lock-submit");
+
+    input.focus();
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        result.textContent = "Checking...";
+        result.className = "lock-result is-busy";
+
+        try {
+            const response = await fetch("/api/unlock", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pin: input.value })
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (response.ok && payload.success) {
+                result.textContent = "Unlocked. Opening the dashboard...";
+                result.className = "lock-result is-ok";
+                window.location.replace("/");
+                return;
+            }
+            result.textContent = payload.message || "That PIN is not correct.";
+            result.className = "lock-result is-error";
+            input.value = "";
+            input.focus();
+        } catch (error) {
+            result.textContent = "The scanner could not be reached.";
+            result.className = "lock-result is-error";
+        } finally {
+            button.disabled = false;
+        }
+    });
+})();
+</script>
+</body>
+</html>

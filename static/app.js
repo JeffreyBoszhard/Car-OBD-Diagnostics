@@ -1,18 +1,24 @@
-/* Made by Boszhard Development */
-const CONNECTED_POLL_MS = 100;
+// The dashboard is fed by /api/stream (server-sent events). These intervals
+// are only used by the fallback path: no EventSource, a dropped stream, or a
+// browser whose unit selection differs from the dashboard default.
+const FALLBACK_POLL_MS = 1000;
 const GAUGE_POLL_MS = 35;
-const DISCONNECTED_POLL_MS = 1200;
+const DISCONNECTED_POLL_MS = 1500;
+const STREAM_RETRY_MS = 2500;
 const TACH_MIN_DEG = 135;
 const TACH_MAX_DEG = 405;
 const TACH_MAX_RPM = 8000;
-const SPEED_MAX = 260;
+let SPEED_MAX = window.APP_UNITS === "imperial" ? 160 : 260;
 const STARTUP_MAX_WAIT_MS = 2200;
 const FETCH_TIMEOUT_MS = 4000;
 const CHART_SAMPLE_MS = 50;
-const PORT_POLL_MS = 1000;
+const PORT_POLL_MS = 3000;
 
-let safeMode = true;
 let pollTimer = null;
+let liveStream = null;
+let streamConnected = false;
+let streamFallbackActive = false;
+let streamRetryTimer = null;
 let gaugePollTimer = null;
 let portPollTimer = null;
 let isConnected = false;
@@ -39,7 +45,6 @@ let lastRenderedCodes = {
     "pending-codes": "",
     "permanent-codes": ""
 };
-let lastSafeModeRendered = null;
 let codeScanPending = false;
 let lastDtcStatus = {};
 let lastConnectionQualitySignature = "";
@@ -596,13 +601,12 @@ async function fetchStatusOnly(shouldHydrateFullData = false) {
 
     isConnected = Boolean(payload.connected);
     demoMode = Boolean(payload.demo_mode);
-    safeMode = Boolean(payload.safe_mode);
     limitedMode = Boolean(payload.limited_mode);
     pollProfile = String(payload.poll_profile?.id || pollProfile);
 
     updateStatus(payload, sessionState);
     updateConnectionQuality(payload.connection_quality || {});
-    updateSafeModeUi();
+    updateServiceModeUi();
     updateLimitedModeUi();
     updatePollProfileUi(payload.poll_profile || { id: pollProfile });
     updateErrorLog(payload.recent_errors || []);
@@ -621,7 +625,13 @@ async function fetchFullData() {
     });
     if (!response.ok) throw new Error(`Server returned status ${response.status}`);
 
-    const payload = await response.json();
+    applyFullPayload(await response.json());
+}
+
+// Renders one complete live-data payload. Called with a frame pushed over
+// /api/stream, or with the answer from /api/data on the fallback path - the
+// rendering is identical either way, only the transport differs.
+function applyFullPayload(payload) {
     lastLivePayload = payload;
     const status = payload.status || {};
     const vehicleProfile = payload.vehicle_profile || {};
@@ -640,25 +650,26 @@ async function fetchFullData() {
 
     isConnected = Boolean(status.connected);
     demoMode = Boolean(status.demo_mode);
-    safeMode = Boolean(status.safe_mode);
     limitedMode = Boolean(status.limited_mode);
 
     updateStatus(status, sessionState);
     updateBusModeIndicator(payload);
     applyWarningThresholds(displayPayload);
     updateConnectionQuality(displayPayload.connection_quality || payload.connection_quality || {});
-    updateSafeModeUi();
+    updateServiceModeUi();
     updateLimitedModeUi();
     updateErrorLog(status.recent_errors || []);
     updateVehicleProfileView(displayPayload.vehicle_profile || vehicleProfile);
     updateHealth(displayPayload.health || {});
     updateQuickMetrics(displayPayload.vehicle || {});
+    updateTripComputer(displayPayload.trip || payload.trip || {});
     updateReadiness(displayPayload.readiness || payload.readiness || {});
     updateFreezeFrame(displayPayload.freeze_frame || payload.freeze_frame || {});
     updateReport(displayPayload.report || payload.report || {});
     updateBatteryCheck(displayPayload.battery_check || payload.battery_check || {});
     updateSimpleSummary(displayPayload.simple_summary || payload.simple_summary || {});
     updatePidSupportSummary(displayPayload.pid_support || payload.pid_support || {});
+    renderExtendedData(displayPayload.extended || payload.extended || {});
     updateDtcStatus(displayPayload.dtc_status || payload.dtc_status || {});
 
     if (!isFrozen) {
@@ -668,6 +679,7 @@ async function fetchFullData() {
         updateCodes("stored-codes", displayPayload.dtc?.stored || []);
         updateCodes("pending-codes", displayPayload.dtc?.pending || []);
         updateCodes("permanent-codes", displayPayload.dtc?.permanent || []);
+        checkForNewFaultCodes(displayPayload.dtc || payload.dtc || {});
     }
 
     if (
@@ -891,11 +903,142 @@ async function fetchPortOptionsLive() {
 
 function scheduleNextPoll() {
     window.clearTimeout(pollTimer);
-    pollTimer = window.setTimeout(fetchData, isConnected ? CONNECTED_POLL_MS : DISCONNECTED_POLL_MS);
+    // While the stream is feeding us, this only runs as a slow safety net.
+    const delay = streamConnected && !streamFallbackActive
+        ? 15000
+        : (isConnected ? FALLBACK_POLL_MS : DISCONNECTED_POLL_MS);
+    pollTimer = window.setTimeout(fetchData, delay);
+}
+
+// ---------------------------------------------------------------------------
+// Live data stream
+// ---------------------------------------------------------------------------
+// The server builds each frame once and pushes it to every open tab, instead
+// of every tab asking for its own copy ten times a second. The browser's own
+// unit selection has to match the one the stream publishes in; when it does
+// not (a per-browser override), the stream is kept for the gauges and the
+// full payload is polled in this browser's units instead.
+function streamUnitsMatch(frameUnits) {
+    if (!frameUnits) return true;
+    const mine = window.APP_UNITS || "metric";
+    return String(frameUnits) === String(mine);
+}
+
+function setStreamIndicator(state) {
+    const indicator = byId("stream-indicator");
+    if (!indicator) return;
+    indicator.dataset.state = state;
+    indicator.classList.toggle("is-live", state === "live");
+    indicator.classList.toggle("is-fallback", state === "fallback");
+    indicator.title = state === "live"
+        ? tr("stream_live", "Live stream connected")
+        : state === "fallback"
+            ? tr("stream_fallback", "Stream unavailable - polling instead")
+            : tr("stream_connecting", "Connecting to live stream...");
+}
+
+function connectLiveStream() {
+    if (!("EventSource" in window)) {
+        streamFallbackActive = true;
+        setStreamIndicator("fallback");
+        return;
+    }
+
+    window.clearTimeout(streamRetryTimer);
+    try {
+        liveStream = new EventSource("/api/stream");
+    } catch (error) {
+        console.error(error);
+        scheduleStreamRetry();
+        return;
+    }
+
+    liveStream.addEventListener("open", () => {
+        streamConnected = true;
+        setStreamIndicator("live");
+    });
+
+    liveStream.addEventListener("gauges", (event) => {
+        try {
+            const frame = JSON.parse(event.data);
+            isConnected = Boolean(frame.connected);
+            demoMode = Boolean(frame.demo_mode);
+            if (!isFrozen && streamUnitsMatch(frame.units)) {
+                updateGaugeTargets(frame.vehicle || {});
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    });
+
+    liveStream.addEventListener("live", (event) => {
+        try {
+            const frame = JSON.parse(event.data);
+            if (!streamUnitsMatch(frame.units)) {
+                if (!streamFallbackActive) {
+                    streamFallbackActive = true;
+                    setStreamIndicator("fallback");
+                    scheduleNextPoll();
+                }
+                return;
+            }
+            streamFallbackActive = false;
+            streamConnected = true;
+            setStreamIndicator("live");
+            applyFullPayload(frame);
+        } catch (error) {
+            console.error(error);
+        }
+    });
+
+    liveStream.addEventListener("status", (event) => {
+        try {
+            const frame = JSON.parse(event.data);
+            updateStatus(frame, frame.session_state || {});
+        } catch (error) {
+            console.error(error);
+        }
+    });
+
+    liveStream.addEventListener("error", () => {
+        // EventSource reconnects by itself, but a server that went away
+        // entirely must not leave the dashboard frozen and silent.
+        streamConnected = false;
+        setStreamIndicator("connecting");
+        if (liveStream && liveStream.readyState === EventSource.CLOSED) {
+            scheduleStreamRetry();
+        }
+        scheduleNextPoll();
+    });
+}
+
+function scheduleStreamRetry() {
+    window.clearTimeout(streamRetryTimer);
+    streamRetryTimer = window.setTimeout(() => {
+        closeLiveStream();
+        connectLiveStream();
+    }, STREAM_RETRY_MS);
+}
+
+function closeLiveStream() {
+    if (liveStream) {
+        try {
+            liveStream.close();
+        } catch (error) {
+            console.error(error);
+        }
+    }
+    liveStream = null;
+    streamConnected = false;
 }
 
 function scheduleGaugePoll() {
     window.clearTimeout(gaugePollTimer);
+    if (streamConnected) {
+        // The stream already carries the gauge channel.
+        gaugePollTimer = window.setTimeout(scheduleGaugePoll, 2000);
+        return;
+    }
     gaugePollTimer = window.setTimeout(fetchGaugeData, isConnected || demoMode ? GAUGE_POLL_MS : DISCONNECTED_POLL_MS);
 }
 
@@ -963,6 +1106,8 @@ function updateStatus(status, sessionState = {}) {
     setText("system-port", portLabel);
     setText("scope-badge", tr("scope_standard_obd", "Standard OBD Only"));
     setText("live-state", liveStateText);
+    // Drives the pulsing LED on the live-data chip.
+    document.body.dataset.live = (status.connected || demoMode) && !status.connecting ? "1" : "0";
     setText("connection-hint", connectionHintText);
     updateDemoModeUi();
 
@@ -1152,6 +1297,138 @@ function updateGaugeTargets(vehicle) {
 
     targetRpm = nextRpm;
     targetSpeed = nextSpeed;
+
+    updateAccelTimer(nextSpeed);
+    updateHomeMiniDashboard(vehicle);
+}
+
+const accelTimerState = { armed: true, running: false, startTs: null, best: null };
+
+function accelTargetSpeed() {
+    return window.APP_UNITS === "imperial" ? 60 : 100;
+}
+
+function initAccelTimerTitle() {
+    const titleEl = byId("accel-timer-title");
+    if (!titleEl) return;
+    titleEl.textContent = window.APP_UNITS === "imperial"
+        ? tr("accel_title_imperial", "0-60 mph")
+        : tr("accel_title", "0-100 km/h");
+}
+
+function resetAccelTimer() {
+    accelTimerState.armed = true;
+    accelTimerState.running = false;
+    accelTimerState.startTs = null;
+    accelTimerState.best = null;
+    setText("accel-timer-value", "--");
+    setText("accel-timer-status", tr("accel_waiting", "Waiting for launch..."));
+    setText("accel-best-time", tr("accel_best_none", "No run recorded yet."));
+}
+
+function updateAccelTimer(speed) {
+    const valueEl = byId("accel-timer-value");
+    const statusEl = byId("accel-timer-status");
+    if (!valueEl || !statusEl || !Number.isFinite(speed)) return;
+
+    const target = accelTargetSpeed();
+
+    if (!accelTimerState.running) {
+        if (speed <= 1 && !accelTimerState.armed) {
+            accelTimerState.armed = true;
+        }
+        if (speed > 2 && accelTimerState.armed) {
+            accelTimerState.running = true;
+            accelTimerState.armed = false;
+            accelTimerState.startTs = performance.now();
+        }
+    }
+
+    if (accelTimerState.running) {
+        const elapsed = (performance.now() - accelTimerState.startTs) / 1000;
+        valueEl.textContent = `${elapsed.toFixed(2)}s`;
+        statusEl.textContent = tr("accel_running", "Timing...");
+        if (speed >= target) {
+            accelTimerState.running = false;
+            if (accelTimerState.best === null || elapsed < accelTimerState.best) {
+                accelTimerState.best = elapsed;
+                setText("accel-best-time", tr("accel_best", "Best this session: {time}s", { time: elapsed.toFixed(2) }));
+            }
+            statusEl.textContent = tr("accel_done", "Done! Reset to run again.");
+        }
+    } else if (!accelTimerState.armed) {
+        statusEl.textContent = tr("accel_waiting_stop", "Come to a stop to arm the timer.");
+    } else {
+        statusEl.textContent = tr("accel_waiting", "Waiting for launch...");
+    }
+}
+
+function updateHomeMiniDashboard(vehicle) {
+    if (!byId("home-speed")) return;
+    // The fast gauge poll (/api/gauges) only ever sends speed/rpm, for smooth
+    // needle animation between full data polls. Only touch coolant/voltage
+    // when this update actually carries that data (the full /api/data poll),
+    // so the fast poll doesn't blank them back to "No Data" every tick.
+    if ("speed" in vehicle) setText("home-speed", displayLiveValue(vehicle.speed?.value));
+    if ("rpm" in vehicle) setText("home-rpm", displayLiveValue(vehicle.rpm?.value));
+    if ("coolant_temp" in vehicle) setText("home-coolant", displayLiveValue(vehicle.coolant_temp?.value));
+    if ("control_voltage" in vehicle || "voltage" in vehicle) {
+        setText("home-voltage", displayLiveValue(vehicle.control_voltage?.value || vehicle.voltage?.value));
+    }
+}
+
+function formatTripDuration(totalSeconds) {
+    const seconds = Math.max(0, Math.round(totalSeconds || 0));
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hours > 0) {
+        return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+    }
+    return `${minutes}m ${String(secs).padStart(2, "0")}s`;
+}
+
+function updateTripComputer(trip) {
+    if (!trip || !byId("trip-distance")) return;
+
+    setText("trip-distance", `${Number(trip.distance ?? 0).toFixed(1)} ${trip.distance_unit || "km"}`);
+    setText("trip-avg-speed", `${Number(trip.avg_speed ?? 0).toFixed(0)} ${trip.speed_unit || "km/h"}`);
+    setText("trip-max-speed", `${Number(trip.max_speed ?? 0).toFixed(0)} ${trip.speed_unit || "km/h"}`);
+    setText("trip-max-rpm", trip.max_rpm ? Math.round(trip.max_rpm) : "--");
+    setText("trip-driving-time", formatTripDuration(trip.driving_seconds));
+    setText("trip-idle-time", formatTripDuration(trip.idle_seconds));
+    setText("trip-avg-coolant", trip.avg_coolant !== null && trip.avg_coolant !== undefined
+        ? `${Number(trip.avg_coolant).toFixed(0)} ${trip.temp_unit || "C"}`
+        : "--");
+    setText("trip-avg-consumption", trip.avg_consumption
+        ? `${trip.avg_consumption.value} ${trip.avg_consumption.unit}`
+        : "--");
+
+    const liveConsumption = trip.live_consumption;
+    if (liveConsumption) {
+        setLiveMetricText(
+            "quick-fuel-economy",
+            liveConsumption.idle
+                ? `${liveConsumption.value} L/h`
+                : `${liveConsumption.value} ${liveConsumption.unit}`
+        );
+    } else {
+        setLiveMetricText("quick-fuel-economy", tr("quick_no_data", "No Data"));
+    }
+}
+
+async function resetTripComputer() {
+    const button = byId("trip-reset-button");
+    if (button) button.disabled = true;
+    try {
+        const response = await fetch("/api/trip/reset", { method: "POST" });
+        const result = await response.json();
+        if (result.trip) updateTripComputer(result.trip);
+    } catch (error) {
+        console.error(error);
+    } finally {
+        if (button) button.disabled = false;
+    }
 }
 
 function liveGaugeValue(current, target, snapThreshold, dt = 1 / 60, response = 16) {
@@ -1169,11 +1446,34 @@ function liveGaugeValue(current, target, snapThreshold, dt = 1 / 60, response = 
     return current + difference * alpha;
 }
 
+// Briefly highlights a readout whose value just changed, the way a real
+// scan tool blips a field on update. Only fires on a real change, so a
+// steady value does not strobe.
+function flashOnChange(elementId, nextValue) {
+    const element = byId(elementId);
+    if (!element) return;
+    const host = element.closest(".quick-metric, .detail-row, .metric-panel") || element;
+    if (element.dataset.lastValue !== undefined && element.dataset.lastValue !== String(nextValue)) {
+        host.classList.remove("is-updated");
+        // Reading offsetWidth restarts the CSS animation.
+        void host.offsetWidth;
+        host.classList.add("is-updated");
+        window.setTimeout(() => host.classList.remove("is-updated"), 500);
+    }
+    element.dataset.lastValue = String(nextValue);
+}
+
 function updateQuickMetrics(vehicle) {
-    setLiveMetricText("quick-coolant", formatLiveValue(vehicle.coolant_temp?.value, "coolant_temp"));
-    setLiveMetricText("quick-voltage", formatLiveValue(vehicle.control_voltage?.value || vehicle.voltage?.value, "control_voltage"));
-    setLiveMetricText("quick-fuel-trim", formatLiveValue(vehicle.long_fuel_trim_1?.value, "long_fuel_trim_1"));
-    setLiveMetricText("quick-engine-load", formatLiveValue(vehicle.engine_load?.value, "engine_load"));
+    const metrics = {
+        "quick-coolant": formatLiveValue(vehicle.coolant_temp?.value, "coolant_temp"),
+        "quick-voltage": formatLiveValue(vehicle.control_voltage?.value || vehicle.voltage?.value, "control_voltage"),
+        "quick-fuel-trim": formatLiveValue(vehicle.long_fuel_trim_1?.value, "long_fuel_trim_1"),
+        "quick-engine-load": formatLiveValue(vehicle.engine_load?.value, "engine_load")
+    };
+    Object.entries(metrics).forEach(([id, value]) => {
+        flashOnChange(id, value);
+        setLiveMetricText(id, value);
+    });
 }
 
 function pushChartPoint(buffer, value) {
@@ -2010,16 +2310,6 @@ function updateVehicleProfileView(profile) {
     if (plateInput && lastVehicleProfile.plate_query) {
         plateInput.value = lastVehicleProfile.plate_query;
     }
-    const garageVinInput = byId("garage-note-vin");
-    if (garageVinInput && vin && document.activeElement !== garageVinInput) {
-        garageVinInput.value = vin;
-    }
-    const garagePlateInput = byId("garage-note-plate");
-    if (garagePlateInput && lastVehicleProfile.plate_query && document.activeElement !== garagePlateInput) {
-        garagePlateInput.value = lastVehicleProfile.plate_query;
-    }
-    updateGarageActiveVehicle();
-
     setText("plate-result", lastVehicleProfile.plate_message || tr("plate_default", "Enter a Dutch license plate manually to load RDW data."));
     setText("rdw-plate", displayValue(rdw.plate));
     setText("rdw-plate-mini", displayValue(rdw.plate));
@@ -2134,7 +2424,7 @@ function updateLiveData(vehicle) {
         if (!row) {
             row = document.createElement("div");
             row.dataset.key = key;
-            row.innerHTML = `<div class="sensor-row-main"><span class="sensor-label"></span><span class="sensor-row-meta"></span></div><div class="sensor-row-badges"><span class="sensor-warning-badge" hidden>WARN</span><span class="sensor-state-badge">SNSR</span></div><strong class="sensor-value"></strong>`;
+            row.innerHTML = `<div class="sensor-row-main"><span class="sensor-label"></span><span class="sensor-row-meta"></span><canvas class="sensor-sparkline" width="140" height="20" hidden></canvas></div><div class="sensor-row-badges"><span class="sensor-warning-badge" hidden>WARN</span><span class="sensor-state-badge">SNSR</span></div><strong class="sensor-value"></strong>`;
             grid.appendChild(row);
         }
         row.className = "sensor-row";
@@ -2157,7 +2447,61 @@ function updateLiveData(vehicle) {
                 ? tr("stale_at", "Stale | last ok {time}", { time: item.updated_at || "--" })
                 : tr("updated_at", "Updated {time}", { time: item.updated_at || "--" });
         row.querySelector(".sensor-value").textContent = hasNoData ? tr("sensor_no_data", "No Data") : formatLiveValue(item.value, key);
+        updateSensorSparkline(row.querySelector(".sensor-sparkline"), key, hasNoData ? null : item.value);
     });
+}
+
+const sensorSparklineHistory = new Map();
+const SENSOR_SPARKLINE_POINTS = 40;
+
+function updateSensorSparkline(canvas, key, rawValue) {
+    if (!canvas) return;
+    const looksNumeric = rawValue !== null && rawValue !== undefined && /-?\d+(?:[.,]\d+)?/.test(String(rawValue));
+    if (!looksNumeric) {
+        canvas.hidden = true;
+        return;
+    }
+    const value = numberFromValue(rawValue);
+
+    let history = sensorSparklineHistory.get(key);
+    if (!history) {
+        history = [];
+        sensorSparklineHistory.set(key, history);
+    }
+    history.push(value);
+    if (history.length > SENSOR_SPARKLINE_POINTS) {
+        history.shift();
+    }
+
+    if (history.length < 2) {
+        canvas.hidden = true;
+        return;
+    }
+
+    canvas.hidden = false;
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const min = Math.min(...history);
+    const max = Math.max(...history);
+    const range = max - min || 1;
+    const padding = 3;
+
+    ctx.beginPath();
+    ctx.strokeStyle = "#0d6efd";
+    ctx.lineWidth = 1.4;
+    history.forEach((point, index) => {
+        const x = (index / (history.length - 1)) * width;
+        const y = height - padding - ((point - min) / range) * (height - padding * 2);
+        if (index === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+    ctx.stroke();
 }
 
 function updateCountDisplays(baseId, value) {
@@ -2181,6 +2525,97 @@ function updateDtcStatus(status) {
         scanButton.disabled = isScanning;
         scanButton.innerText = isScanning ? tr("scanning", "Scanning...") : tr("scan_codes", "Scan Codes");
     }
+}
+
+const SEEN_FAULT_CODES_KEY = "obdSeenFaultCodes";
+
+function loadSeenFaultCodes() {
+    try {
+        const stored = JSON.parse(window.localStorage.getItem(SEEN_FAULT_CODES_KEY) || "[]");
+        return Array.isArray(stored) ? stored : [];
+    } catch {
+        return [];
+    }
+}
+
+const seenFaultCodes = new Set(loadSeenFaultCodes());
+let faultCodesBaselineReady = seenFaultCodes.size > 0;
+
+function saveSeenFaultCodes() {
+    try {
+        window.localStorage.setItem(SEEN_FAULT_CODES_KEY, JSON.stringify([...seenFaultCodes]));
+    } catch {
+        // Ignore storage failures (private browsing, quota, etc.).
+    }
+}
+
+function notifyNewFaultCode(code, description) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+        new Notification(tr("fault_notification_title", "New fault code detected"), {
+            body: description ? `${code} - ${description}` : code,
+            tag: `obd-dtc-${code}`,
+        });
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function checkForNewFaultCodes(dtc) {
+    if (!dtc) return;
+    const allCodes = [...(dtc.stored || []), ...(dtc.pending || []), ...(dtc.permanent || [])];
+    if (!allCodes.length) return;
+
+    if (!faultCodesBaselineReady) {
+        allCodes.forEach((item) => {
+            if (item.code) seenFaultCodes.add(item.code);
+        });
+        faultCodesBaselineReady = true;
+        saveSeenFaultCodes();
+        return;
+    }
+
+    let hasNew = false;
+    allCodes.forEach((item) => {
+        const code = item.code;
+        if (!code || seenFaultCodes.has(code)) return;
+        seenFaultCodes.add(code);
+        hasNew = true;
+        notifyNewFaultCode(code, item.description_en || item.description || "");
+    });
+    if (hasNew) saveSeenFaultCodes();
+}
+
+function updateFaultAlertsUi() {
+    const button = byId("fault-alerts-button");
+    const copy = byId("fault-alerts-copy");
+    if (!button) return;
+
+    if (!("Notification" in window)) {
+        button.hidden = true;
+        if (copy) copy.textContent = tr("fault_alerts_unsupported", "Your browser does not support notifications.");
+        return;
+    }
+
+    const permission = Notification.permission;
+    if (permission === "granted") {
+        button.textContent = tr("fault_alerts_enabled", "Fault Alerts On");
+        button.disabled = true;
+        if (copy) copy.textContent = tr("fault_alerts_on_copy", "You will get a browser notification when a new fault code appears.");
+    } else if (permission === "denied") {
+        button.textContent = tr("fault_alerts_blocked", "Notifications Blocked");
+        button.disabled = true;
+        if (copy) copy.textContent = tr("fault_alerts_blocked_copy", "Notifications are blocked in your browser settings for this site.");
+    } else {
+        button.textContent = tr("fault_alerts_enable", "Enable Fault Alerts");
+        button.disabled = false;
+        if (copy) copy.textContent = tr("fault_alerts_copy", "Get a browser notification when a new fault code is detected while this tab is open.");
+    }
+}
+
+function requestFaultAlerts() {
+    if (!("Notification" in window)) return;
+    Notification.requestPermission().then(() => updateFaultAlertsUi());
 }
 
 function updateCodes(elementId, codes) {
@@ -2269,21 +2704,20 @@ function severityLabel(severity) {
     return tr("unknown", "Unknown");
 }
 
-function updateSafeModeUi() {
-    const safeButton = byId("safe-mode-button");
-
-    if (safeButton) {
-        safeButton.classList.toggle("is-active", safeMode);
-        safeButton.setAttribute("aria-pressed", String(safeMode));
-        safeButton.innerText = safeMode ? tr("safe_mode_on", "SAFE Mode On") : tr("safe_mode_off", "SAFE Mode Off");
-    }
+function updateServiceModeUi() {
+    // Reading and clearing codes are always available; clearing is guarded by
+    // the confirmation dialog in clearDTC() rather than by a mode switch.
+    const ready = isConnected || demoMode;
     document.querySelectorAll("#clear-button, #clear-button-codes").forEach((button) => {
-        button.disabled = safeMode;
+        button.disabled = !ready;
+        button.title = ready
+            ? tr("clear_codes_hint", "Asks for confirmation before clearing")
+            : tr("clear_codes_offline", "Connect to a vehicle first");
     });
 
-    setText("system-mode", safeMode ? tr("system_mode_safe", "SAFE") : tr("system_mode_service", "Service enabled"));
-
-    lastSafeModeRendered = safeMode;
+    setText("system-mode", ready
+        ? tr("system_mode_service", "Service ready")
+        : tr("system_mode_offline", "Offline"));
 }
 
 function updateFreezeUi() {
@@ -2300,7 +2734,7 @@ function toggleFreeze() {
         isFrozen = false;
         frozenPayload = null;
     } else {
-        const status = { connected: isConnected, safe_mode: safeMode };
+        const status = { connected: isConnected };
         const rpmText = document.getElementById("rpm-value")?.innerText || "0";
         const speedText = document.getElementById("speed-value")?.innerText || "0";
         frozenPayload = {
@@ -2317,29 +2751,6 @@ function toggleFreeze() {
     }
 
     updateFreezeUi();
-}
-
-async function toggleSafeMode() {
-    safeMode = !safeMode;
-    updateSafeModeUi();
-
-    try {
-        const response = await fetch("/api/safe-mode", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled: safeMode })
-        });
-
-        if (!response.ok) throw new Error(`Server gaf status ${response.status}`);
-
-        const result = await response.json();
-        safeMode = Boolean(result.safe_mode);
-        updateSafeModeUi();
-    } catch (error) {
-        console.error(error);
-        safeMode = true;
-        updateSafeModeUi();
-    }
 }
 
 async function reconnectObd() {
@@ -2592,6 +3003,104 @@ checkForUpdates();
     } catch (error) {
         console.error(error);
         resultElement.innerText = error.message || tr("port_save_failed", "Could not save COM port.");
+    }
+}
+
+let selectedBluetoothMac = "";
+
+async function initBluetoothPanel() {
+    const scanBox = byId("bluetooth-scan-box");
+    const unsupportedNote = byId("bluetooth-unsupported-note");
+    if (!scanBox || !unsupportedNote) return;
+
+    try {
+        const response = await fetch("/api/bluetooth/devices");
+        const data = await response.json();
+        if (data.supported) {
+            scanBox.hidden = false;
+        } else {
+            unsupportedNote.hidden = false;
+        }
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function renderBluetoothDevices(devices) {
+    const list = byId("bluetooth-device-list");
+    const bindButton = byId("bluetooth-bind-button");
+    if (!list) return;
+    list.replaceChildren();
+    selectedBluetoothMac = "";
+    if (bindButton) bindButton.hidden = true;
+
+    if (!devices.length) {
+        const empty = document.createElement("p");
+        empty.className = "panel-note";
+        empty.textContent = tr("bluetooth_no_devices", "No paired Bluetooth devices found. Pair the adapter in your OS Bluetooth settings first.");
+        list.appendChild(empty);
+        return;
+    }
+
+    devices.forEach((device) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "bluetooth-device-option";
+        option.dataset.mac = device.mac;
+        option.innerHTML = `
+            <span class="bluetooth-device-option-info">
+                <strong>${escapeHtml(device.name)}</strong>
+                <span>${escapeHtml(device.mac)}</span>
+            </span>
+        `;
+        option.addEventListener("click", () => {
+            selectedBluetoothMac = device.mac;
+            list.querySelectorAll(".bluetooth-device-option").forEach((el) => el.classList.remove("is-selected"));
+            option.classList.add("is-selected");
+            if (bindButton) bindButton.hidden = false;
+        });
+        list.appendChild(option);
+    });
+}
+
+async function scanBluetoothDevices() {
+    const resultElement = byId("bluetooth-result");
+    if (resultElement) resultElement.innerText = tr("bluetooth_scanning", "Scanning for paired Bluetooth devices...");
+
+    try {
+        const response = await fetch("/api/bluetooth/devices");
+        const data = await response.json();
+        renderBluetoothDevices(data.devices || []);
+        if (resultElement) resultElement.innerText = "";
+    } catch (error) {
+        console.error(error);
+        if (resultElement) resultElement.innerText = tr("bluetooth_bind_failed", "Adapter could not be bound.");
+    }
+}
+
+async function bindBluetoothDevice() {
+    const resultElement = byId("bluetooth-result");
+    if (!selectedBluetoothMac) return;
+    if (resultElement) resultElement.innerText = tr("bluetooth_binding", "Binding adapter...");
+
+    try {
+        const response = await fetch("/api/bluetooth/bind", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mac: selectedBluetoothMac })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
+
+        if (resultElement) {
+            resultElement.innerText = tr("bluetooth_bind_success", "Adapter bound to {device}. Select it above and test the connection.", { device: result.device });
+        }
+        renderPortOptions(result.ports || [], result.device || "");
+        const portInput = byId("port-input");
+        if (portInput) portInput.value = result.device || "";
+    } catch (error) {
+        console.error(error);
+        if (resultElement) resultElement.innerText = error.message || tr("bluetooth_bind_failed", "Adapter could not be bound.");
     }
 }
 
@@ -2899,6 +3408,7 @@ async function pollVehicleScanStatus() {
         updateCodes("stored-codes", result.dtc?.stored || []);
         updateCodes("pending-codes", result.dtc?.pending || []);
         updateCodes("permanent-codes", result.dtc?.permanent || []);
+        checkForNewFaultCodes(result.dtc || {});
         updateHealth(result.health || {});
         updateFreezeFrame(result.freeze_frame || {});
         updateReadiness(result.readiness || {});
@@ -2989,16 +3499,9 @@ async function clearDTC() {
     const resultTarget = clearButton?.dataset.resultTarget || "clear-result";
     const resultElement = byId(resultTarget);
 
-    if (safeMode) {
-        if (resultElement) {
-            resultElement.innerText = tr("clear_codes_blocked", "SAFE Mode is on. Turn SAFE Mode off to clear fault codes.");
-        }
-        return;
-    }
-
     const confirmed = await openConfirmDialog(
         tr("clear_codes_confirm_title", "Clear fault codes?"),
-        tr("clear_codes_confirm_message", "Are you sure you want to clear all engine and ECU fault codes?")
+        tr("clear_codes_confirm_message", "This erases stored fault codes and freeze-frame data from the ECU and resets the readiness monitors. The fault itself is not repaired: if it is still present, the code comes back. Continue?")
     );
     if (!confirmed) {
         if (resultElement) {
@@ -3038,7 +3541,7 @@ checkForUpdates();
         resultElement.innerText = tr("clear_command_failed", "Clear command failed. Check the connection.");
         }
     } finally {
-        updateSafeModeUi();
+        updateServiceModeUi();
     }
 }
 
@@ -3264,6 +3767,32 @@ function renderScanHistory(scans) {
             event.stopPropagation();
             deleteSavedScan(scan.id);
         });
+
+        const shareButton = document.createElement("button");
+        shareButton.className = "history-delete-button";
+        shareButton.type = "button";
+        shareButton.textContent = scan.share_token ? tr("scan_copy_link", "Copy Link") : tr("scan_share", "Share");
+        shareButton.title = tr("scan_share_title", "Copy a read-only report link");
+        shareButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            if (scan.share_token) {
+                copyShareLink(`${window.location.origin}/share/${scan.share_token}`, shareButton);
+            } else {
+                shareScan(scan.id, shareButton);
+            }
+        });
+        actions.append(shareButton);
+
+        if (scan.share_token) {
+            const unshareButton = document.createElement("button");
+            unshareButton.className = "history-delete-button";
+            unshareButton.type = "button";
+            unshareButton.textContent = tr("scan_unshare", "Unshare");
+            unshareButton.title = tr("scan_unshare_title", "Revoke this share link");
+            unshareButton.addEventListener("click", (event) => unshareScan(scan.id, event));
+            actions.append(unshareButton);
+        }
+
         actions.append(deleteButton);
 
         row.append(meta, detail, actions);
@@ -3274,6 +3803,47 @@ function renderScanHistory(scans) {
         });
         history.appendChild(row);
     });
+}
+
+async function copyShareLink(url, button) {
+    try {
+        await navigator.clipboard.writeText(url);
+        const original = button.textContent;
+        button.textContent = tr("scan_share_copied", "Link copied!");
+        window.setTimeout(() => {
+            button.textContent = original;
+        }, 1800);
+    } catch {
+        window.prompt(tr("scan_share_copy_manual", "Copy this link:"), url);
+    }
+}
+
+async function shareScan(scanId, button) {
+    button.disabled = true;
+    try {
+        const response = await fetch(`/api/scans/${encodeURIComponent(scanId)}/share`, { method: "POST" });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
+        await copyShareLink(result.share_url, button);
+        fetchScanHistory();
+    } catch (error) {
+        console.error(error);
+        window.alert(error.message || tr("scan_share_failed", "Share link could not be created."));
+    } finally {
+        button.disabled = false;
+    }
+}
+
+async function unshareScan(scanId, event) {
+    event.stopPropagation();
+    const confirmed = window.confirm(tr("scan_unshare_confirm", "Revoke this share link? The old link will stop working."));
+    if (!confirmed) return;
+    try {
+        await fetch(`/api/scans/${encodeURIComponent(scanId)}/share`, { method: "DELETE" });
+        fetchScanHistory();
+    } catch (error) {
+        console.error(error);
+    }
 }
 
 async function deleteSavedScan(scanId) {
@@ -3384,17 +3954,406 @@ function garageFilterParams() {
     const params = new URLSearchParams();
     const query = (byId("garage-filter-search")?.value || "").trim();
     if (query) params.set("q", query);
+    const vehicleId = byId("garage-vehicle-filter")?.value || "";
+    if (vehicleId) params.set("vehicle_id", vehicleId);
     return params;
 }
 
-function updateGarageActiveVehicle() {
-    const target = byId("garage-active-vehicle");
-    if (!target) return;
-    const vin = lastVehicleProfile.vin || byId("garage-note-vin")?.value || "--";
-    const plate = lastVehicleProfile.plate_query || byId("garage-note-plate")?.value || "--";
-    const strong = target.querySelector("strong");
-    if (strong) {
-        strong.textContent = `VIN: ${vin || "--"} | ${tr("history_type_plate", "Plate")}: ${plate || "--"}`;
+let allVehiclesCache = [];
+const vehiclePickerInstances = {};
+
+function updateVehiclePickerCache(vehicles) {
+    allVehiclesCache = vehicles || [];
+    Object.values(vehiclePickerInstances).forEach((picker) => picker && picker.refresh());
+}
+
+function vehicleSearchText(vehicle) {
+    return [vehicle.nickname, vehicle.plate, vehicle.vin, vehicle.brand, vehicle.model, vehicle.year]
+        .map((part) => String(part || "").toLowerCase())
+        .join(" ");
+}
+
+function vehicleLabel(vehicle) {
+    return vehicle.nickname || [vehicle.brand, vehicle.model].filter(Boolean).join(" ") || tr("vehicle_picker_placeholder", "Select vehicle");
+}
+
+function vehicleMeta(vehicle) {
+    return [vehicle.brand, vehicle.model, vehicle.year, vehicle.plate].filter(Boolean).join(" · ") || "--";
+}
+
+function initVehiclePicker(wrapperId, onChange) {
+    const wrapper = byId(wrapperId);
+    if (!wrapper) return null;
+
+    const trigger = wrapper.querySelector("[data-vehicle-picker-trigger]");
+    const triggerText = wrapper.querySelector("[data-vehicle-picker-trigger-text]");
+    const valueInput = wrapper.querySelector("[data-vehicle-picker-value]");
+    const panel = wrapper.querySelector("[data-vehicle-picker-panel]");
+    const search = wrapper.querySelector("[data-vehicle-picker-search]");
+    const optionsBox = wrapper.querySelector("[data-vehicle-picker-options]");
+    const clearButton = wrapper.querySelector("[data-vehicle-picker-clear]");
+    if (!trigger || !triggerText || !valueInput || !panel || !search || !optionsBox) return null;
+
+    let selectedId = "";
+    let closeTimer = null;
+
+    function renderOptions(query) {
+        const q = String(query || "").trim().toLowerCase();
+        const matches = allVehiclesCache.filter((vehicle) => !q || vehicleSearchText(vehicle).includes(q));
+        optionsBox.replaceChildren();
+        if (!matches.length) {
+            const empty = document.createElement("div");
+            empty.className = "vehicle-picker-empty";
+            empty.textContent = tr("vehicle_picker_empty", "No matching vehicles.");
+            optionsBox.appendChild(empty);
+            return;
+        }
+        matches.forEach((vehicle) => {
+            const option = document.createElement("button");
+            option.type = "button";
+            option.className = "vehicle-picker-option";
+            option.dataset.vehicleId = vehicle.id;
+            option.innerHTML = `
+                <span class="vehicle-picker-option-main">
+                    <strong>${escapeHtml(vehicleLabel(vehicle))}</strong>
+                    <span>${escapeHtml(vehicleMeta(vehicle))}</span>
+                </span>
+                <span class="vehicle-picker-option-meta">${escapeHtml(vehicle.vin || "")}</span>
+            `;
+            option.addEventListener("click", () => selectVehicle(vehicle));
+            optionsBox.appendChild(option);
+        });
+    }
+
+    function selectVehicle(vehicle) {
+        selectedId = String(vehicle.id);
+        valueInput.value = selectedId;
+        triggerText.textContent = vehicleLabel(vehicle);
+        triggerText.classList.remove("is-placeholder");
+        closePanel();
+        if (onChange) onChange(vehicle);
+    }
+
+    function clearSelection() {
+        const hadSelection = Boolean(selectedId);
+        selectedId = "";
+        valueInput.value = "";
+        triggerText.textContent = tr("vehicle_picker_placeholder", "Select vehicle");
+        triggerText.classList.add("is-placeholder");
+        closePanel();
+        if (onChange && hadSelection) onChange(null);
+    }
+
+    function handleOutsideClick(event) {
+        if (!wrapper.contains(event.target)) closePanel();
+    }
+
+    function openPanel() {
+        if (closeTimer) window.clearTimeout(closeTimer);
+        panel.hidden = false;
+        requestAnimationFrame(() => panel.classList.add("is-open"));
+        trigger.setAttribute("aria-expanded", "true");
+        search.value = "";
+        renderOptions("");
+        search.focus();
+        document.addEventListener("click", handleOutsideClick, true);
+    }
+
+    function closePanel() {
+        panel.classList.remove("is-open");
+        trigger.setAttribute("aria-expanded", "false");
+        document.removeEventListener("click", handleOutsideClick, true);
+        if (closeTimer) window.clearTimeout(closeTimer);
+        closeTimer = window.setTimeout(() => {
+            if (!panel.classList.contains("is-open")) panel.hidden = true;
+        }, 160);
+    }
+
+    trigger.addEventListener("click", () => {
+        if (panel.classList.contains("is-open")) closePanel();
+        else openPanel();
+    });
+    search.addEventListener("input", () => renderOptions(search.value));
+    if (clearButton) clearButton.addEventListener("click", clearSelection);
+
+    return {
+        refresh() {
+            if (selectedId && !allVehiclesCache.some((item) => String(item.id) === selectedId)) {
+                clearSelection();
+            }
+            if (panel.classList.contains("is-open")) renderOptions(search.value);
+        },
+        reset: clearSelection,
+        getValue() {
+            return selectedId;
+        },
+    };
+}
+
+function populateVehicleFilters(vehicles) {
+    ["garage-vehicle-filter", "fuel-log-vehicle-filter"].forEach((id) => {
+        const select = byId(id);
+        if (!select) return;
+        const currentValue = select.value;
+        select.innerHTML = `<option value="">${escapeHtml(tr("vehicle_filter_all", "All vehicles"))}</option>` +
+            vehicles.map((vehicle) => `<option value="${vehicle.id}">${escapeHtml(vehicle.nickname)}</option>`).join("");
+        select.value = currentValue;
+    });
+}
+
+function renderVehicleList(vehicles, activeId) {
+    const list = byId("vehicle-list");
+    if (!list) return;
+    list.replaceChildren();
+
+    if (!vehicles.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = tr("vehicle_result", "No vehicle profiles yet.");
+        list.appendChild(empty);
+        return;
+    }
+
+    vehicles.forEach((vehicle, index) => {
+        const chip = document.createElement("div");
+        chip.className = `garage-vehicle-chip${vehicle.id === activeId ? " is-active" : ""}`;
+        chip.style.animationDelay = `${Math.min(index * 24, 260)}ms`;
+        const isActive = vehicle.id === activeId;
+        const meta = [vehicle.vin ? `VIN ${vehicle.vin}` : "", vehicle.plate || ""].filter(Boolean).join(" - ") || "--";
+        chip.innerHTML = `
+            <div class="garage-vehicle-chip-info">
+                <strong>${escapeHtml(vehicle.nickname)}</strong>
+                <span>${isActive ? escapeHtml(tr("vehicle_active", "Active")) : escapeHtml(meta)}</span>
+            </div>
+            <div class="garage-vehicle-chip-actions">
+                ${isActive ? "" : `<button class="icon-action" type="button" data-activate-vehicle="${vehicle.id}" title="${escapeHtml(tr("vehicle_activate", "Set Active"))}" aria-label="${escapeHtml(tr("vehicle_activate", "Set Active"))}">&#10003;</button>`}
+                <button class="icon-action danger-icon" type="button" data-delete-vehicle="${vehicle.id}" aria-label="${escapeHtml(tr("vehicle_delete", "Delete"))}">&#128465;</button>
+            </div>
+        `;
+        list.appendChild(chip);
+    });
+
+    list.querySelectorAll("[data-activate-vehicle]").forEach((button) => {
+        button.addEventListener("click", () => activateVehicleProfile(button.dataset.activateVehicle));
+    });
+    list.querySelectorAll("[data-delete-vehicle]").forEach((button) => {
+        button.addEventListener("click", () => deleteVehicleProfile(button.dataset.deleteVehicle));
+    });
+}
+
+async function fetchVehicles() {
+    const list = byId("vehicle-list");
+    if (!list) return;
+    try {
+        const response = await fetch("/api/vehicles");
+        const data = await response.json();
+        renderVehicleList(data.vehicles || [], data.active_vehicle_id);
+        populateVehicleFilters(data.vehicles || []);
+        updateVehiclePickerCache(data.vehicles || []);
+    } catch (error) {
+        console.error(error);
+        list.innerHTML = `<p>${tr("vehicle_load_failed", "Vehicles could not be loaded.")}</p>`;
+    }
+}
+
+async function saveVehicleProfile(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setText("vehicle-result", tr("vehicle_saving", "Saving vehicle..."));
+    try {
+        const response = await fetch("/api/vehicles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                nickname: byId("vehicle-nickname")?.value || "",
+                vin: byId("vehicle-vin")?.value || "",
+                plate: byId("vehicle-plate")?.value || "",
+                brand: byId("vehicle-brand")?.value || "",
+                model: byId("vehicle-model")?.value || "",
+                year: byId("vehicle-year")?.value || "",
+                tank: byId("vehicle-tank")?.value || "",
+            }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
+        setText("vehicle-result", tr("vehicle_saved", "Vehicle added."));
+        form.reset();
+        renderVehicleList(result.vehicles || [], result.active_vehicle_id);
+        populateVehicleFilters(result.vehicles || []);
+        updateVehiclePickerCache(result.vehicles || []);
+    } catch (error) {
+        console.error(error);
+        setText("vehicle-result", error.message || tr("vehicle_save_failed", "Vehicle could not be saved."));
+    }
+}
+
+async function activateVehicleProfile(vehicleId) {
+    try {
+        await fetch(`/api/vehicles/${vehicleId}/activate`, { method: "POST" });
+        fetchVehicles();
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+async function deleteVehicleProfile(vehicleId) {
+    if (!window.confirm(tr("vehicle_delete_confirm", "Delete this vehicle profile? Notes and fuel log entries already tagged with it are kept, just unlinked."))) return;
+    try {
+        const response = await fetch(`/api/vehicles/${vehicleId}`, { method: "DELETE" });
+        const result = await response.json();
+        renderVehicleList(result.vehicles || [], result.active_vehicle_id);
+        populateVehicleFilters(result.vehicles || []);
+        updateVehiclePickerCache(result.vehicles || []);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+async function fetchMaintenanceReminder() {
+    const banner = byId("maintenance-reminder-banner");
+    if (!banner) return;
+    try {
+        const response = await fetch("/api/maintenance-reminder");
+        const reminder = await response.json();
+        if (!reminder || !reminder.available) {
+            banner.hidden = true;
+            return;
+        }
+        const vars = {
+            last: reminder.last_service_at,
+            due: reminder.due_at,
+            current: reminder.current,
+            distance: Math.abs(reminder.remaining),
+            unit: reminder.distance_unit,
+            interval: window.APP_UNITS === "imperial" ? 6214 : 10000
+        };
+        banner.textContent = reminder.overdue
+            ? tr("maintenance_reminder_overdue", "Service overdue: last logged at {last} {unit}, due at {due} {unit} (about {distance} {unit} ago).", vars)
+            : tr("maintenance_reminder_upcoming", "Next service due around {due} {unit} - about {distance} {unit} from the last known {current} {unit}.", vars);
+        banner.className = `panel-note${reminder.overdue ? " is-overdue" : ""}`;
+        banner.hidden = false;
+    } catch (error) {
+        console.error(error);
+        banner.hidden = true;
+    }
+}
+
+function renderFuelLogTrendChart(trend) {
+    const canvas = byId("fuel-log-chart");
+    if (!canvas) return;
+    const maxHint = window.APP_UNITS === "imperial" ? 45 : 18;
+    drawLineChart("fuel-log-chart", (trend || []).map((point) => point.economy), "#0ca678", maxHint, "Economy");
+}
+
+function renderFuelLogList(entries) {
+    const list = byId("fuel-log-list");
+    if (!list) return;
+    list.replaceChildren();
+
+    if (!entries.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = tr("fuel_log_empty", "No fuel log entries yet. Add your first fill-up.");
+        list.appendChild(empty);
+        return;
+    }
+
+    entries.forEach((entry, index) => {
+        const row = document.createElement("div");
+        row.className = "history-row garage-note-row";
+        row.style.animationDelay = `${Math.min(index * 24, 260)}ms`;
+        const economyText = entry.economy
+            ? `${entry.economy.value} ${entry.economy.unit}`
+            : tr("fuel_log_first_fill_note", "First fill - economy calculated from the next one.");
+        const chips = [
+            entry.created_at,
+            `${entry.mileage} ${entry.distance_unit}`,
+            `${entry.volume} ${entry.volume_unit}`,
+            entry.cost !== null && entry.cost !== undefined ? String(entry.cost) : ""
+        ].filter(Boolean).map((value) => `<span>${escapeHtml(String(value))}</span>`).join("");
+        const vehicle = entry.vehicle_id ? allVehiclesCache.find((item) => String(item.id) === String(entry.vehicle_id)) : null;
+        const tankBar = vehicle && vehicle.tank
+            ? `<div class="fuel-log-tank-bar"><div class="fuel-log-tank-bar-fill" style="width:${Math.min(100, Math.round((entry.volume / vehicle.tank) * 100))}%"></div></div>`
+            : "";
+        row.innerHTML = `
+            <div class="garage-note-content">
+                <strong>${escapeHtml(economyText)}</strong>
+                <div class="garage-note-meta">${chips}</div>
+                ${tankBar}
+                ${entry.notes ? `<p>${escapeHtml(entry.notes)}</p>` : ""}
+            </div>
+            <div class="garage-note-actions">
+                <button class="icon-action danger-icon fuel-log-delete" type="button" data-fuel-log-id="${entry.id}" aria-label="${escapeHtml(tr("fuel_log_delete", "Delete"))}">&#128465;</button>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+    list.querySelectorAll("[data-fuel-log-id]").forEach((button) => {
+        button.addEventListener("click", deleteFuelLogEntry);
+    });
+}
+
+function renderFuelLogHistory(data) {
+    renderFuelLogList(data.entries || []);
+    renderFuelLogTrendChart(data.trend || []);
+}
+
+async function fetchFuelLogs() {
+    const list = byId("fuel-log-list");
+    if (!list) return;
+    list.innerHTML = `<p>${tr("fuel_log_loading", "Loading fuel log...")}</p>`;
+    try {
+        const vehicleId = byId("fuel-log-vehicle-filter")?.value || "";
+        const url = vehicleId ? `/api/fuel-logs?vehicle_id=${encodeURIComponent(vehicleId)}` : "/api/fuel-logs";
+        const response = await fetch(url);
+        const data = await response.json();
+        renderFuelLogHistory(data || { entries: [], trend: [] });
+        fetchMaintenanceReminder();
+    } catch (error) {
+        console.error(error);
+        list.innerHTML = `<p>${tr("fuel_log_failed", "Could not load fuel log entries.")}</p>`;
+    }
+}
+
+async function saveFuelLogEntry(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setText("fuel-log-result", tr("fuel_log_saving", "Saving fill-up..."));
+
+    try {
+        const response = await fetch("/api/fuel-logs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                mileage: byId("fuel-log-mileage")?.value || "",
+                liters: byId("fuel-log-liters")?.value || "",
+                cost: byId("fuel-log-cost")?.value || null,
+                notes: byId("fuel-log-notes")?.value || "",
+                vehicle_id: vehiclePickerInstances["fuel-log-vehicle-picker"]?.getValue() || ""
+            })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
+        setText("fuel-log-result", tr("fuel_log_saved", "Fill-up saved."));
+        form.reset();
+        vehiclePickerInstances["fuel-log-vehicle-picker"]?.reset();
+        renderFuelLogHistory(result.fuel_log || { entries: [], trend: [] });
+    } catch (error) {
+        console.error(error);
+        setText("fuel-log-result", error.message || tr("fuel_log_save_failed", "Fuel log entry could not be saved."));
+    }
+}
+
+async function deleteFuelLogEntry(event) {
+    const logId = event.currentTarget.dataset.fuelLogId;
+    if (!logId) return;
+    if (!window.confirm(tr("fuel_log_delete_confirm", "Delete this fuel log entry?"))) return;
+    try {
+        const response = await fetch(`/api/fuel-logs/${logId}`, { method: "DELETE" });
+        const result = await response.json();
+        renderFuelLogHistory(result.fuel_log || { entries: [], trend: [] });
+    } catch (error) {
+        console.error(error);
     }
 }
 
@@ -3408,6 +4367,7 @@ async function fetchGarageNotes() {
         const response = await fetch(`/api/garage-notes${params.toString() ? `?${params.toString()}` : ""}`);
         const notes = await response.json();
         renderGarageNotes(notes || []);
+        fetchMaintenanceReminder();
     } catch (error) {
         console.error(error);
         list.innerHTML = `<p>${tr("garage_failed", "Could not load garage notes.")}</p>`;
@@ -3451,7 +4411,7 @@ function renderGarageNotes(notes) {
                 <strong>${escapeHtml(note.title || tr("garage_note", "Garage note"))}</strong>
                 <div class="garage-note-meta">${identityChips || "<span>--</span>"}</div>
                 <p>${escapeHtml(note.note || "")}</p>
-                ${note.payload?.garage_attachment?.data ? `<a class="secondary-action compact-action" href="${note.payload.garage_attachment.data}" target="_blank" rel="noopener">Open photo</a>` : ""}
+                ${garageNoteAttachmentMarkup(note)}
             </div>
             <div class="garage-note-actions">
                 <button class="icon-action garage-note-edit" type="button" data-garage-note="${editPayload}" aria-label="${escapeHtml(tr("garage_edit", "Edit garage note"))}">&#9998;</button>
@@ -3466,6 +4426,23 @@ function renderGarageNotes(notes) {
     list.querySelectorAll("[data-garage-note-id]").forEach((button) => {
         button.addEventListener("click", deleteGarageNote);
     });
+}
+
+// Photos are files on the server now, not base64 inside the note payload.
+// The name is generated server-side and validated there, and it is still
+// escaped here: nothing from a stored record is ever written into markup raw.
+function garageNoteAttachmentMarkup(note) {
+    const name = note.attachment_name;
+    if (!name || !/^[0-9a-f]{32}\.(?:jpg|png|webp|gif)$/.test(String(name))) {
+        return "";
+    }
+    const src = `/uploads/${encodeURIComponent(String(name))}`;
+    return `
+        <a class="garage-note-photo" href="${escapeHtml(src)}" target="_blank" rel="noopener">
+            <img src="${escapeHtml(src)}" alt="${escapeHtml(tr("garage_photo_alt", "Photo attached to this note"))}" loading="lazy">
+            <span>${escapeHtml(tr("garage_open_photo", "Open photo"))}</span>
+        </a>
+    `;
 }
 
 function clearGarageFilter() {
@@ -3564,26 +4541,6 @@ function validateGarageNoteForm() {
     setGarageFieldError(plateInput, false);
     setGarageFieldError(noteInput, false);
 
-    if (!vin && !plate) {
-        setGarageFieldError(vinInput, true);
-        setGarageFieldError(plateInput, true);
-        return { ok: false, message: tr("garage_identity_required", "Enter both VIN and license plate before saving a garage note.") };
-    }
-    if (!vin) {
-        setGarageFieldError(vinInput, true);
-        return { ok: false, message: tr("garage_vin_missing", "Enter a VIN before saving this garage note.") };
-    }
-    if (vin.length !== 17) {
-        setGarageFieldError(vinInput, true);
-        return {
-            ok: false,
-            message: tr("garage_vin_invalid_length", "VIN must be exactly 17 characters. You entered {count}.", { count: vin.length })
-        };
-    }
-    if (/[IOQ]/.test(vin)) {
-        setGarageFieldError(vinInput, true);
-        return { ok: false, message: tr("garage_vin_invalid_chars", "VIN cannot contain I, O or Q. Check the VIN and try again.") };
-    }
     if (!plate) {
         setGarageFieldError(plateInput, true);
         return { ok: false, message: tr("garage_plate_missing", "Enter a license plate before saving this garage note.") };
@@ -3591,6 +4548,17 @@ function validateGarageNoteForm() {
     if (plate.length < 4) {
         setGarageFieldError(plateInput, true);
         return { ok: false, message: tr("garage_plate_too_short", "License plate looks too short. Check the plate and try again.") };
+    }
+    if (vin && vin.length !== 17) {
+        setGarageFieldError(vinInput, true);
+        return {
+            ok: false,
+            message: tr("garage_vin_invalid_length", "VIN must be exactly 17 characters. You entered {count}.", { count: vin.length })
+        };
+    }
+    if (vin && /[IOQ]/.test(vin)) {
+        setGarageFieldError(vinInput, true);
+        return { ok: false, message: tr("garage_vin_invalid_chars", "VIN cannot contain I, O or Q. Check the VIN and try again.") };
     }
     if (!noteText.trim()) {
         setGarageFieldError(noteInput, true);
@@ -3628,16 +4596,24 @@ async function deleteGarageNote(event) {
     }
 }
 
-function readGaragePhotoAttachment() {
-    const input = byId("garage-note-photo");
-    const file = input?.files?.[0];
-    if (!file) return Promise.resolve(null);
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve({ name: file.name, type: file.type, size: file.size, data: reader.result });
-        reader.onerror = () => reject(reader.error || new Error("Could not read photo attachment."));
-        reader.readAsDataURL(file);
-    });
+const PHOTO_MAX_BYTES = 6 * 1024 * 1024;
+const PHOTO_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+// Checked here for a quick, clear message; the server validates the bytes
+// again and does not trust any of this.
+function validateGaragePhoto(file) {
+    if (!file) return { ok: true };
+    if (!PHOTO_ALLOWED_TYPES.includes(file.type)) {
+        return { ok: false, message: tr("garage_photo_type", "Only JPEG, PNG, WebP or GIF photos can be attached.") };
+    }
+    if (file.size > PHOTO_MAX_BYTES) {
+        return { ok: false, message: tr("garage_photo_size", "That photo is larger than the 6 MB limit.") };
+    }
+    return { ok: true };
+}
+
+function selectedGaragePhoto() {
+    return byId("garage-note-photo")?.files?.[0] || null;
 }
 
 async function saveGarageNote(event) {
@@ -3656,20 +4632,40 @@ async function saveGarageNote(event) {
         : tr("garage_saving", "Saving garage note..."));
 
     try {
-        const attachment = editingGarageNoteId ? null : await readGaragePhotoAttachment();
+        const photo = editingGarageNoteId ? null : selectedGaragePhoto();
+        const photoCheck = validateGaragePhoto(photo);
+        if (!photoCheck.ok) {
+            setText("garage-note-result", photoCheck.message);
+            return;
+        }
+
+        const fields = {
+            vin: validation.vin,
+            plate: validation.plate,
+            title: byId("garage-note-title")?.value || "",
+            mileage: byId("garage-note-mileage")?.value || "",
+            note: validation.noteText,
+            vehicle_id: vehiclePickerInstances["garage-note-vehicle-picker"]?.getValue() || ""
+        };
+
         const url = editingGarageNoteId ? `/api/garage-notes/${editingGarageNoteId}` : "/api/garage-notes";
-        const response = await fetch(url, {
-            method: editingGarageNoteId ? "PUT" : "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                vin: validation.vin,
-                plate: validation.plate,
-                title: byId("garage-note-title")?.value || "",
-                mileage: byId("garage-note-mileage")?.value || "",
-                note: validation.noteText,
-                attachment
-            })
-        });
+        let requestInit;
+        if (photo) {
+            // multipart: the photo is uploaded as a file, so nothing has to be
+            // base64-encoded into the note itself.
+            const form = new FormData();
+            Object.entries(fields).forEach(([key, value]) => form.append(key, value));
+            form.append("photo", photo, photo.name);
+            requestInit = { method: "POST", body: form };
+        } else {
+            requestInit = {
+                method: editingGarageNoteId ? "PUT" : "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(fields)
+            };
+        }
+
+        const response = await fetch(url, requestInit);
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
         if (resultElement) {
@@ -3678,9 +4674,9 @@ async function saveGarageNote(event) {
                 : tr("garage_saved", "Garage note saved at {time}.", { time: result.note?.created_at || "--" });
         }
         form.reset();
+        vehiclePickerInstances["garage-note-vehicle-picker"]?.reset();
         setGarageEditMode(null);
         renderGarageNotes(result.notes || []);
-        updateVehicleProfileView(lastVehicleProfile);
         fetchGarageNotes();
     } catch (error) {
         console.error(error);
@@ -3702,6 +4698,40 @@ function initLanguageSwitcher() {
                 return;
             }
             setLanguageCookie(nextLanguage);
+            window.location.reload();
+        });
+    });
+}
+
+function setUnitsCookie(unitsCode) {
+    document.cookie = `obd_units=${encodeURIComponent(unitsCode)}; path=/; max-age=31536000; SameSite=Lax`;
+}
+
+function initUnitsSwitcher() {
+    document.querySelectorAll("[data-unit-code]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const nextUnits = String(button.dataset.unitCode || "metric").toLowerCase();
+            if (nextUnits === String(window.APP_UNITS || "metric").toLowerCase()) {
+                return;
+            }
+            setUnitsCookie(nextUnits);
+            window.location.reload();
+        });
+    });
+}
+
+function setThemeCookie(themeCode) {
+    document.cookie = `obd_theme=${encodeURIComponent(themeCode)}; path=/; max-age=31536000; SameSite=Lax`;
+}
+
+function initThemeSwitcher() {
+    document.querySelectorAll("[data-theme-code]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const nextTheme = String(button.dataset.themeCode || "auto").toLowerCase();
+            if (nextTheme === String(window.APP_THEME || "auto").toLowerCase()) {
+                return;
+            }
+            setThemeCookie(nextTheme);
             window.location.reload();
         });
     });
@@ -3731,17 +4761,13 @@ function initPollProfileButtons() {
     });
 }
 
+// Storage is a single local .db file; the only first-run choices left are
+// language and units.
 function hydrateDashboardSetup(setup = {}) {
-    const storage = String(setup.storage_type || "sqlite");
-    const storageInput = document.querySelector(`input[name="setup-storage"][value="${storage}"]`);
-    if (storageInput) storageInput.checked = true;
     const language = byId("setup-language");
     if (language && setup.language) language.value = setup.language;
-    const mysql = setup.mysql || {};
-    if (byId("setup-mysql-host")) byId("setup-mysql-host").value = mysql.host || "";
-    if (byId("setup-mysql-port")) byId("setup-mysql-port").value = mysql.port || 3306;
-    if (byId("setup-mysql-database")) byId("setup-mysql-database").value = mysql.database || "";
-    if (byId("setup-mysql-user")) byId("setup-mysql-user").value = mysql.user || "";
+    const units = byId("setup-units");
+    if (units && setup.units) units.value = setup.units;
 }
 
 async function initDashboardSetup() {
@@ -3752,43 +4778,17 @@ async function initDashboardSetup() {
         const setup = await response.json();
         hydrateDashboardSetup(setup);
         modal.hidden = Boolean(setup.completed);
-        initSetupStorageToggle();
     } catch {
         modal.hidden = false;
     }
 }
 
-function initSetupStorageToggle() {
-    const mysql = byId("setup-mysql-fields");
-    const updateMysqlFields = () => {
-        const selectedStorage = document.querySelector('input[name="setup-storage"]:checked')?.value || "sqlite";
-        if (!mysql) return;
-        mysql.hidden = selectedStorage !== "mysql";
-    };
-
-    document.querySelectorAll('input[name="setup-storage"]').forEach((input) => {
-        input.addEventListener("change", updateMysqlFields);
-    });
-
-    updateMysqlFields();
-}
-
 async function saveDashboardSetup() {
-    const storage = document.querySelector('input[name="setup-storage"]:checked')?.value || "sqlite";
     const language = byId("setup-language")?.value || "en";
+    const units = byId("setup-units")?.value || "metric";
     const resultElement = byId("setup-result");
     const button = byId("setup-save-button");
-    const payload = {
-        storage_type: storage,
-        language,
-        mysql: {
-            host: byId("setup-mysql-host")?.value || "",
-            port: Number(byId("setup-mysql-port")?.value || 3306),
-            database: byId("setup-mysql-database")?.value || "",
-            user: byId("setup-mysql-user")?.value || "",
-            password: byId("setup-mysql-password")?.value || ""
-        }
-    };
+    const payload = { language, units };
     if (button) button.disabled = true;
     if (resultElement) resultElement.textContent = tr("setup_saving", "Saving setup...");
     try {
@@ -3796,6 +4796,7 @@ async function saveDashboardSetup() {
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
         setLanguageCookie(language);
+        setUnitsCookie(units);
         if (resultElement) resultElement.textContent = tr("setup_saved", "Setup saved.");
         const modal = byId("setup-modal");
         if (modal) modal.hidden = true;
@@ -3809,6 +4810,124 @@ async function saveDashboardSetup() {
 }
 
 
+
+// ---------------------------------------------------------------------------
+// Extended PIDs: odometer, DPF, hybrid/EV battery pack
+// ---------------------------------------------------------------------------
+// These are read from the vehicle with standard service modes, but support is
+// far from universal, so the panel states plainly which values the car
+// actually answered instead of showing a confident-looking zero.
+function renderExtendedData(data) {
+    const grid = byId("extended-grid");
+    if (!grid) return;
+
+    const cards = [];
+    const odometer = data?.odometer;
+    if (odometer && odometer.km !== null && odometer.km !== undefined) {
+        const km = Number(odometer.km);
+        const imperial = (window.APP_UNITS || "metric") === "imperial";
+        const value = imperial ? km * 0.621371 : km;
+        const unit = imperial ? "mi" : "km";
+        cards.push({
+            label: tr("odometer_reading", "Odometer read from the ECU"),
+            value: `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${unit}`,
+            note: odometer.source === "demo"
+                ? tr("demo_value", "Demo value")
+                : tr("odometer_pid", "Service mode 01, PID A6"),
+            classes: "is-odometer"
+        });
+    } else {
+        cards.push({
+            label: tr("odometer_reading", "Odometer read from the ECU"),
+            value: tr("odometer_unsupported", "This vehicle does not answer the odometer PID."),
+            note: "",
+            classes: "is-unsupported"
+        });
+    }
+
+    const dpf = data?.dpf;
+    if (dpf?.available) {
+        if (dpf.temperature_c !== null && dpf.temperature_c !== undefined) {
+            cards.push({
+                label: tr("dpf_temperature", "DPF temperature"),
+                value: `${dpf.temperature_c} C`,
+                note: ""
+            });
+        }
+        if (dpf.pressure_raw) {
+            cards.push({
+                label: tr("dpf_pressure", "DPF pressure (raw)"),
+                value: String(dpf.pressure_raw),
+                note: tr("dpf_raw_note", "Layout is manufacturer-specific")
+            });
+        }
+    }
+
+    const pack = data?.battery_pack;
+    if (pack?.available && pack.remaining_pct !== null && pack.remaining_pct !== undefined) {
+        cards.push({
+            label: tr("battery_pack_remaining", "Battery pack remaining"),
+            value: `${pack.remaining_pct}%`,
+            note: tr("battery_pack_pid", "Service mode 01, PID 5B")
+        });
+    }
+
+    grid.replaceChildren();
+    cards.forEach((card, index) => {
+        const element = document.createElement("div");
+        element.className = `extended-card ${card.classes || ""}`.trim();
+        element.style.animationDelay = `${Math.min(index * 40, 200)}ms`;
+        const label = document.createElement("span");
+        label.textContent = card.label;
+        const value = document.createElement("strong");
+        value.textContent = card.value;
+        element.append(label, value);
+        if (card.note) {
+            const note = document.createElement("small");
+            note.textContent = card.note;
+            element.appendChild(note);
+        }
+        grid.appendChild(element);
+    });
+
+    const checked = byId("extended-result");
+    if (checked) {
+        checked.textContent = data?.checked_at
+            ? tr("extended_checked", "Last read: {time}", { time: data.checked_at })
+            : "";
+    }
+}
+
+async function fetchExtendedData() {
+    try {
+        const response = await fetch("/api/extended");
+        if (!response.ok) throw new Error(`Server returned status ${response.status}`);
+        renderExtendedData(await response.json());
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+async function refreshExtendedData() {
+    const button = byId("extended-refresh");
+    const result = byId("extended-result");
+    if (button) button.disabled = true;
+    if (result) result.textContent = tr("extended_reading", "Reading extended PIDs...");
+    try {
+        const response = await fetch("/api/extended/refresh", { method: "POST" });
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            throw new Error(payload.message || `Server returned status ${response.status}`);
+        }
+        renderExtendedData(payload.extended);
+    } catch (error) {
+        console.error(error);
+        if (result) result.textContent = error.message || tr("extended_failed", "Extended PIDs could not be read.");
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+
 function on(id, eventName, handler) {
     const element = byId(id);
     if (element) {
@@ -3817,12 +4936,15 @@ function on(id, eventName, handler) {
 }
 
 initPollProfileButtons();
-on("safe-mode-button", "click", toggleSafeMode);
 on("freeze-button", "click", toggleFreeze);
+on("extended-refresh", "click", refreshExtendedData);
 on("clear-button", "click", clearDTC);
 on("clear-button-codes", "click", clearDTC);
 on("port-form", "submit", savePort);
 on("port-input", "change", savePort);
+on("bluetooth-scan-button", "click", scanBluetoothDevices);
+on("bluetooth-bind-button", "click", bindBluetoothDevice);
+initBluetoothPanel();
 on("reconnect-button", "click", reconnectObd);
 on("refresh-vin-button", "click", () => fetchVehicleProfile(true));
 on("manual-vin-form", "submit", saveManualVin);
@@ -3840,6 +4962,12 @@ on("export-csv-button", "click", () => exportScanReportFormat("csv"));
 on("export-cancel-button", "click", closeExportModal);
 on("reset-ui-cache-button", "click", resetUiCache);
 on("garage-clear-filter-button", "click", clearGarageFilter);
+on("trip-reset-button", "click", resetTripComputer);
+on("fault-alerts-button", "click", requestFaultAlerts);
+updateFaultAlertsUi();
+on("accel-reset-button", "click", resetAccelTimer);
+initAccelTimerTitle();
+resetAccelTimer();
 on("garage-export-button", "click", exportGarageNotes);
 on("garage-note-cancel-edit", "click", cancelGarageEdit);
 const reportExportButton = byId("report-export-button");
@@ -3886,9 +5014,10 @@ if (garageSearchInput) {
     });
 }
 
-initSetupStorageToggle();
 initDashboardSetup();
 initLanguageSwitcher();
+initUnitsSwitcher();
+initThemeSwitcher();
 initPortDropdown();
 initNavigation();
 initDashboardLauncher();
@@ -3899,9 +5028,214 @@ armStartupFallback();
 loadConfig();
 schedulePortPoll();
 scheduleGaugePoll();
+setStreamIndicator("connecting");
+connectLiveStream();
+window.addEventListener("beforeunload", closeLiveStream);
 fetchSupportedSensors();
 fetchScanHistory();
-fetchGarageNotes();
+fetchExtendedData();
+on("vehicle-form", "submit", saveVehicleProfile);
+on("garage-vehicle-filter", "change", fetchGarageNotes);
+on("fuel-log-vehicle-filter", "change", fetchFuelLogs);
+function applyGarageNoteVehicleSelection(vehicle) {
+    const plateInput = byId("garage-note-plate");
+    const vinInput = byId("garage-note-vin");
+    const note = byId("garage-note-vehicle-note");
+    if (!plateInput || !vinInput) return;
+
+    if (vehicle) {
+        plateInput.value = vehicle.plate || "";
+        vinInput.value = vehicle.vin || "";
+        plateInput.readOnly = true;
+        vinInput.readOnly = true;
+        plateInput.classList.add("is-picker-linked");
+        vinInput.classList.add("is-picker-linked");
+        if (note) note.hidden = false;
+    } else {
+        plateInput.readOnly = false;
+        vinInput.readOnly = false;
+        plateInput.classList.remove("is-picker-linked");
+        vinInput.classList.remove("is-picker-linked");
+        plateInput.value = "";
+        vinInput.value = "";
+        if (note) note.hidden = true;
+    }
+}
+
+function applyFuelLogVehicleSelection(vehicle) {
+    const note = byId("fuel-log-tank-note");
+    if (!note) return;
+
+    if (vehicle && vehicle.tank) {
+        note.hidden = false;
+        note.textContent = tr("vehicle_tank_note", "Tank size: {size} {unit}", { size: vehicle.tank, unit: vehicle.tank_unit || "L" });
+    } else {
+        note.hidden = true;
+        note.textContent = "";
+    }
+}
+
+function appendUnitToLabelNode(id, unit) {
+    // Reuses the server-rendered (already localized) label text as the base
+    // instead of a hardcoded English tr() fallback, so the unit suffix gets
+    // appended without breaking non-English languages.
+    const el = byId(id);
+    const textNode = el?.firstChild;
+    if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return;
+    if (el.dataset.baseLabel === undefined) el.dataset.baseLabel = textNode.textContent.trim();
+    textNode.textContent = `${el.dataset.baseLabel} (${unit}) `;
+}
+
+function applyDynamicUnitLabels() {
+    const imperial = window.APP_UNITS === "imperial";
+    const distanceUnit = imperial ? "mi" : "km";
+    const volumeUnit = imperial ? "gal" : "L";
+    const distanceBadge = imperial ? "MI" : "KM";
+    const volumeBadge = imperial ? "GAL" : "L";
+
+    appendUnitToLabelNode("garage-note-mileage-label", distanceUnit);
+    appendUnitToLabelNode("fuel-log-mileage-label", distanceUnit);
+    appendUnitToLabelNode("fuel-log-liters-label", volumeUnit);
+    appendUnitToLabelNode("trip-log-start-label", distanceUnit);
+    appendUnitToLabelNode("trip-log-end-label", distanceUnit);
+
+    setText("fuel-log-mileage-badge", distanceBadge);
+    setText("fuel-log-liters-badge", volumeBadge);
+    setText("trip-log-start-badge", distanceBadge);
+    setText("trip-log-end-badge", distanceBadge);
+    setText("vehicle-tank-unit", volumeUnit);
+}
+
+function initYearStepper() {
+    const stepper = byId("vehicle-year-stepper");
+    const input = byId("vehicle-year");
+    if (!stepper || !input) return;
+
+    stepper.querySelectorAll("[data-year-step]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const step = Number(button.dataset.yearStep) || 0;
+            const current = Number(input.value) || new Date().getFullYear();
+            const next = Math.min(2100, Math.max(1900, current + step));
+            input.value = String(next);
+        });
+    });
+    input.addEventListener("blur", () => {
+        if (!input.value) return;
+        const clamped = Math.min(2100, Math.max(1900, Number(input.value) || 0));
+        input.value = clamped ? String(clamped) : "";
+    });
+}
+
+function renderTripLogList(entries) {
+    const list = byId("trip-log-list");
+    if (!list) return;
+    list.replaceChildren();
+
+    if (!entries.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = tr("trip_log_empty", "No trips logged yet. Add your first trip.");
+        list.appendChild(empty);
+        return;
+    }
+
+    entries.forEach((entry, index) => {
+        const row = document.createElement("div");
+        row.className = "history-row garage-note-row";
+        row.style.animationDelay = `${Math.min(index * 24, 260)}ms`;
+        const distanceText = `${entry.distance} ${entry.distance_unit}`;
+        const chips = [
+            entry.created_at,
+            `${entry.start_mileage} ${entry.distance_unit} -> ${entry.end_mileage} ${entry.distance_unit}`,
+        ].filter(Boolean).map((value) => `<span>${escapeHtml(String(value))}</span>`).join("");
+        row.innerHTML = `
+            <div class="garage-note-content">
+                <strong>${escapeHtml(entry.purpose || distanceText)}</strong>
+                <div class="garage-note-meta">${chips}</div>
+                ${entry.purpose && entry.notes ? `<p>${escapeHtml(entry.notes)}</p>` : entry.notes ? `<p>${escapeHtml(entry.notes)}</p>` : ""}
+            </div>
+            <div class="garage-note-actions">
+                <button class="icon-action danger-icon trip-log-delete" type="button" data-trip-log-id="${entry.id}" aria-label="${escapeHtml(tr("trip_log_delete", "Delete"))}">&#128465;</button>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+    list.querySelectorAll("[data-trip-log-id]").forEach((button) => {
+        button.addEventListener("click", deleteTripLogEntry);
+    });
+}
+
+async function fetchTripLog() {
+    const list = byId("trip-log-list");
+    if (!list) return;
+    list.innerHTML = `<p>${tr("trip_log_loading", "Loading trips...")}</p>`;
+    try {
+        const vehicleId = byId("trip-log-vehicle-filter")?.value || "";
+        const url = vehicleId ? `/api/trip-log?vehicle_id=${encodeURIComponent(vehicleId)}` : "/api/trip-log";
+        const response = await fetch(url);
+        const data = await response.json();
+        renderTripLogList(data.entries || []);
+    } catch (error) {
+        console.error(error);
+        list.innerHTML = `<p>${tr("trip_log_load_failed", "Could not load trips.")}</p>`;
+    }
+}
+
+async function saveTripLogEntry(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setText("trip-log-result", tr("trip_log_saving", "Saving trip..."));
+
+    try {
+        const response = await fetch("/api/trip-log", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                start_mileage: byId("trip-log-start")?.value || "",
+                end_mileage: byId("trip-log-end")?.value || "",
+                purpose: byId("trip-log-purpose")?.value || "",
+                notes: byId("trip-log-notes")?.value || "",
+                vehicle_id: vehiclePickerInstances["trip-log-vehicle-picker"]?.getValue() || ""
+            })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.message || `Server returned status ${response.status}`);
+        setText("trip-log-result", tr("trip_log_saved", "Trip saved."));
+        form.reset();
+        vehiclePickerInstances["trip-log-vehicle-picker"]?.reset();
+        renderTripLogList(result.trip_log || []);
+    } catch (error) {
+        console.error(error);
+        setText("trip-log-result", error.message || tr("trip_log_save_failed", "Trip could not be saved."));
+    }
+}
+
+async function deleteTripLogEntry(event) {
+    const tripId = event.currentTarget.dataset.tripLogId;
+    if (!tripId) return;
+    if (!window.confirm(tr("trip_log_delete_confirm", "Delete this trip?"))) return;
+    try {
+        const response = await fetch(`/api/trip-log/${tripId}`, { method: "DELETE" });
+        const result = await response.json();
+        renderTripLogList(result.trip_log || []);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+vehiclePickerInstances["garage-note-vehicle-picker"] = initVehiclePicker("garage-note-vehicle-picker", applyGarageNoteVehicleSelection);
+vehiclePickerInstances["fuel-log-vehicle-picker"] = initVehiclePicker("fuel-log-vehicle-picker", applyFuelLogVehicleSelection);
+vehiclePickerInstances["trip-log-vehicle-picker"] = initVehiclePicker("trip-log-vehicle-picker");
+initYearStepper();
+applyDynamicUnitLabels();
+on("trip-log-form", "submit", saveTripLogEntry);
+on("trip-log-vehicle-filter", "change", fetchTripLog);
+fetchTripLog();
+fetchVehicles().then(() => {
+    fetchGarageNotes();
+    fetchFuelLogs();
+});
+on("fuel-log-form", "submit", saveFuelLogEntry);
 renderVehicleLookupHistory();
 fetchData();
 checkForUpdates();

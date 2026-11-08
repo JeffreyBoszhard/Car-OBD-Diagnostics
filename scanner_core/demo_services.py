@@ -1,4 +1,3 @@
-# Made by Boszhard Development
 import math
 import random
 import time
@@ -95,7 +94,7 @@ def build_demo_vehicle_snapshot(speed_kmh=0.0, preset="idle"):
     now = time.time()
     preset_id = normalize_demo_preset(preset)
     speed = _animated_demo_speed(speed_kmh, preset_id, now)
-    displayed_speed = max(0, int(round(speed)))
+    displayed_speed = max(0, round(speed))
 
     if preset_id == "cruise":
         base_idle_rpm = 980.0 + math.sin(now * 1.5) * 18.0
@@ -223,7 +222,7 @@ def build_demo_vehicle_snapshot(speed_kmh=0.0, preset="idle"):
         distance_since_clear = "186 km"
         time_since_clear = "240 min"
 
-    rpm = max(760, min(7800, int(round(base_idle_rpm + load_factor + transient))))
+    rpm = max(760, min(7800, round(base_idle_rpm + load_factor + transient)))
 
     return {
         "status": {"label": "Monitor status", "value": f"Demo preset: {DEMO_PRESETS[preset_id]['label']}"},

@@ -1,4 +1,3 @@
-# Made by Boszhard Development
 import re
 import time
 from html import escape
@@ -21,20 +20,19 @@ def validate_garage_note_identity(raw_vin, raw_plate):
     vin_text = re.sub(r"[^A-Z0-9]", "", str(raw_vin or "").upper())
     plate_text = normalize_garage_plate(raw_plate)
 
-    if not vin_text and not plate_text:
-        return False, "Enter both VIN and license plate before saving a garage note."
-    if not vin_text:
-        return False, "Enter a VIN before saving this garage note."
-    if len(vin_text) != 17:
-        return False, f"VIN must be exactly 17 characters. You entered {len(vin_text)}."
-    if any(char in vin_text for char in "IOQ"):
-        return False, "VIN cannot contain I, O or Q. Check the VIN and try again."
-    if not normalize_garage_vin(vin_text):
-        return False, "VIN format is invalid. Use 17 letters and numbers."
     if not plate_text:
         return False, "Enter a license plate before saving this garage note."
     if len(plate_text) < 4:
         return False, "License plate looks too short. Check the plate and try again."
+
+    # VIN is optional, but if one was typed it still has to look like a real VIN.
+    if vin_text:
+        if len(vin_text) != 17:
+            return False, f"VIN must be exactly 17 characters. You entered {len(vin_text)}."
+        if any(char in vin_text for char in "IOQ"):
+            return False, "VIN cannot contain I, O or Q. Check the VIN and try again."
+        if not normalize_garage_vin(vin_text):
+            return False, "VIN format is invalid. Use 17 letters and numbers."
 
     return True, ""
 

@@ -1,0 +1,44 @@
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".bak_0.6.2",
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+]
+
+[tool.ruff.lint]
+# F821 (undefined name) is the rule that matters most here: the MySQL backend
+# shipped for two releases calling importlib.import_module() in a module that
+# never imported importlib, and nothing caught it because reaching that code
+# needed a MySQL server. A linter sees it without one.
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes: undefined names, unused imports
+    "W",    # pycodestyle warnings
+    "B",    # bugbear: likely bugs
+    "UP",   # pyupgrade
+    "C4",   # comprehension simplifications
+    "RUF",  # ruff's own checks
+]
+ignore = [
+    "E501",   # long lines: the translation tables are wide on purpose
+    "B008",   # function call in default argument
+    "RUF001", # ambiguous unicode in translated strings
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The translation tables are generated data, not hand-written logic.
+"scanner_core/server_text.py" = ["E501", "RUF001", "RUF002", "RUF003"]
+"scanner_core/translation.py" = ["E501", "RUF001", "RUF002", "RUF003"]
+"scanner_core/errorcode.py" = ["E501"]
+"scanner_core/dtc_catalog.py" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"

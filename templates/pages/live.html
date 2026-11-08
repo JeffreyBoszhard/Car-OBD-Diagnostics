@@ -1,5 +1,4 @@
-﻿<!-- Made by Boszhard Development -->
-<section class="page-screen page-live" data-page="live">
+﻿<section class="page-screen page-live" data-page="live">
     <div class="live-command-grid">
         <article class="panel health-panel live-health-console">
             <div class="panel-heading">
@@ -118,7 +117,38 @@
                 <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.voltage }}</span><strong id="quick-voltage">--</strong></article>
                 <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.fuel_trim }}</span><strong id="quick-fuel-trim">--</strong></article>
                 <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.engine_load }}</span><strong id="quick-engine-load">--</strong></article>
+                <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.fuel_economy }}</span><strong id="quick-fuel-economy">--</strong></article>
             </section>
+
+            <article class="panel trip-computer-panel">
+                <div class="panel-heading compact-heading">
+                    <div><p class="eyebrow">{{ i18n.live.trip_eyebrow }}</p><h2>{{ i18n.live.trip_title }}</h2></div>
+                    <button id="trip-reset-button" class="secondary-action compact-action" type="button">{{ i18n.live.trip_reset }}</button>
+                </div>
+                <section class="quick-metrics-grid">
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_distance }}</span><strong id="trip-distance">--</strong></article>
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_avg_speed }}</span><strong id="trip-avg-speed">--</strong></article>
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_max_speed }}</span><strong id="trip-max-speed">--</strong></article>
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_max_rpm }}</span><strong id="trip-max-rpm">--</strong></article>
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_driving_time }}</span><strong id="trip-driving-time">--</strong></article>
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_idle_time }}</span><strong id="trip-idle-time">--</strong></article>
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_avg_coolant }}</span><strong id="trip-avg-coolant">--</strong></article>
+                    <article class="panel quick-metric"><span>{{ i18n.live.trip_avg_consumption }}</span><strong id="trip-avg-consumption">--</strong></article>
+                </section>
+                <p class="panel-note">{{ i18n.live.trip_fuel_disclaimer }}</p>
+            </article>
+
+            <article class="panel accel-timer-panel">
+                <div class="panel-heading compact-heading">
+                    <div><p class="eyebrow">{{ i18n.live.accel_eyebrow }}</p><h2 id="accel-timer-title">{{ i18n.live.accel_title }}</h2></div>
+                    <button id="accel-reset-button" class="secondary-action compact-action" type="button">{{ i18n.live.trip_reset }}</button>
+                </div>
+                <div class="accel-timer-readout">
+                    <strong id="accel-timer-value">--</strong>
+                    <span id="accel-timer-status">{{ i18n.live.accel_waiting }}</span>
+                </div>
+                <p class="panel-note" id="accel-best-time">{{ i18n.live.accel_best_none }}</p>
+            </article>
         </aside>
     </div>
 

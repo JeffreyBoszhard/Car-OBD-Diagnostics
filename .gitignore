@@ -6,10 +6,20 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Local scanner database and runtime state
 scanner_config.db
 *.db
 *.sqlite
 *.sqlite3
+dashboard_runtime.json
+dashboard_setup.json
+
+# Garage-note photos and the rotating error log are local data
+uploads/
+logs/
+
+# Local backup copies of older releases
+.bak_*/
 
 *.zip
 *.log

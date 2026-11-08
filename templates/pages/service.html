@@ -1,4 +1,3 @@
-<!-- Made by Boszhard Development -->
 <section class="page-screen page-service scanner-service-page" data-page="service">
     <div class="service-layout scanner-service-layout">
         <article class="panel config-panel service-config-panel scanner-adapter-panel">
@@ -7,6 +6,7 @@
                 <label for="port-input">{{ i18n.service.adapter_port_label }}</label>
                 <div class="port-select-wrap"><div class="port-dropdown-shell" data-port-dropdown><button id="port-dropdown-trigger" class="port-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="port-dropdown-menu"><span class="port-dropdown-copy"><span class="port-dropdown-eyebrow">{{ i18n.service.adapter_port_label }}</span><span id="port-dropdown-value" class="port-dropdown-value">{{ i18n.service.adapter_port_placeholder }}</span></span><span class="port-dropdown-icon" aria-hidden="true"></span></button><div id="port-dropdown-menu" class="port-dropdown-menu" role="listbox" hidden></div></div><select id="port-input" class="port-native-select" name="port" aria-label="{{ i18n.service.adapter_port_label }}"><option value="">{{ i18n.service.adapter_port_placeholder }}</option></select></div>
                 <p id="port-result">{{ i18n.service.adapter_port_copy }}</p>
+                <p class="panel-note">{{ i18n.service.adapter_bus_mode_note }}</p>
             </form>
         </article>
 
@@ -16,6 +16,12 @@
             <button id="test-connection-button" class="secondary-action primary-cta" type="button">{{ i18n.service.connection_test_button }}</button>
             <p id="test-connection-result">{{ i18n.service.connection_test_result }}</p>
             <div id="test-connection-steps" class="sensor-support-list"></div>
+        </article>
+
+        <article class="panel service-panel scanner-fault-alerts-panel">
+            <div class="panel-heading"><div><p class="eyebrow">{{ i18n.service.fault_alerts_eyebrow }}</p><h2>{{ i18n.service.fault_alerts_title }}</h2></div></div>
+            <button id="fault-alerts-button" class="secondary-action" type="button">{{ i18n.service.fault_alerts_enable }}</button>
+            <p id="fault-alerts-copy" class="panel-note">{{ i18n.service.fault_alerts_copy }}</p>
         </article>
 
         <article class="panel service-panel scanner-clear-panel">
@@ -34,6 +40,19 @@
             <div class="panel-heading"><div><p class="eyebrow">{{ i18n.service.setup_guide_eyebrow }}</p><h2>{{ i18n.service.advanced_warning_title }}</h2></div></div>
             <div class="setup-guide"><ol>{% for step in i18n.service.setup_steps %}<li>{{ step }}</li>{% endfor %}</ol></div>
             <p class="panel-copy">{{ i18n.service.advanced_warning_copy }}</p>
+        </article>
+
+        <article class="panel bluetooth-panel scanner-bluetooth-panel">
+            <div class="panel-heading"><div><p class="eyebrow">{{ i18n.service.bluetooth_eyebrow }}</p><h2>{{ i18n.service.bluetooth_title }}</h2></div></div>
+            <p class="panel-copy">{{ i18n.service.bluetooth_copy }}</p>
+            <div class="setup-guide"><ol>{% for step in i18n.service.bluetooth_guide_steps %}<li>{{ step }}</li>{% endfor %}</ol></div>
+            <div id="bluetooth-scan-box" class="bluetooth-scan-box" hidden>
+                <button id="bluetooth-scan-button" class="secondary-action" type="button">{{ i18n.service.bluetooth_scan_button }}</button>
+                <div id="bluetooth-device-list" class="bluetooth-device-list"></div>
+                <button id="bluetooth-bind-button" class="secondary-action primary-cta" type="button" hidden>{{ i18n.service.bluetooth_bind_button }}</button>
+                <p id="bluetooth-result" class="panel-note"></p>
+            </div>
+            <p id="bluetooth-unsupported-note" class="panel-note" hidden>{{ i18n.service.bluetooth_not_supported }}</p>
         </article>
     </div>
 </section>

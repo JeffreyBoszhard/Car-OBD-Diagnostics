@@ -1,10 +1,13 @@
-<!-- Made by Boszhard Development -->
 <!DOCTYPE html>
-<html lang="{{ i18n.meta.html_lang }}">
+<html lang="{{ i18n.meta.html_lang }}" {% if theme in ("light", "dark") %}data-theme="{{ theme }}"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>OBD Scanner {{ app_version }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
     <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
 </head>
 <body data-dashboard-page="true">
@@ -16,7 +19,7 @@
         <p id="update-message">A new version is available.</p>
     </div>
     <a id="update-link" class="secondary-action compact-action" href="#" target="_blank" rel="noopener">Open GitHub</a>
-    <button id="update-close" class="update-close" type="button" aria-label="Close update notification">x</button>
+    <button id="update-close" class="update-close" type="button" aria-label="Close update notification">&times;</button>
 </div>
 
 
@@ -28,23 +31,16 @@
 <div id="setup-modal" class="setup-modal" hidden>
     <div class="setup-card">
         <p class="eyebrow">First dashboard setup</p>
-        <h2>Choose your storage mode</h2>
-        <p class="panel-copy">This is saved in <strong>dashboard_setup.json</strong>, not in the database.</p>
-        <div class="setup-options">
-            <label class="setup-option"><input type="radio" name="setup-storage" value="sqlite" checked> <span><strong>SQLite</strong><small>Local .db file on this device</small></span></label>
-            <label class="setup-option"><input type="radio" name="setup-storage" value="mysql"> <span><strong>MySQL</strong><small>External database for shared scan and garage history</small></span></label>
-        </div>
+        <h2>Set up your scanner</h2>
+        <p class="panel-copy">Scans, the car journal and settings are stored in a local <strong>scanner_config.db</strong> file next to the app. Language and units are saved in <strong>dashboard_setup.json</strong>.</p>
         <label class="setup-field-label" for="setup-language">Language</label>
         <select id="setup-language" class="setup-select">
-            {% for option in language_options %}<option value="{{ option.code }}" {% if option.code == language %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
+            {% for option in language_options %}<option value="{{ option.code }}" {% if option.code == lang %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
         </select>
-        <div id="setup-mysql-fields" class="setup-mysql-fields" hidden>
-            <input id="setup-mysql-host" type="text" placeholder="MySQL host">
-            <input id="setup-mysql-port" type="number" min="1" max="65535" value="3306" placeholder="Port">
-            <input id="setup-mysql-database" type="text" placeholder="Database name">
-            <input id="setup-mysql-user" type="text" placeholder="User">
-            <input id="setup-mysql-password" type="password" placeholder="Password">
-        </div>
+        <label class="setup-field-label" for="setup-units">Units</label>
+        <select id="setup-units" class="setup-select">
+            {% for option in unit_options %}<option value="{{ option.code }}" {% if option.code == units %}selected{% endif %}>{{ option.name }}</option>{% endfor %}
+        </select>
         <p id="setup-result" class="setup-result"></p>
         <button id="setup-save-button" class="secondary-action" type="button">Save setup</button>
     </div>
@@ -80,7 +76,6 @@
                 {% include "pages/garage.html" %}
                 {% include "pages/service.html" %}
                 {% include "pages/system.html" %}
-                <p class="dashboard-credit">Made by Boszhard Development</p>
             </main>
         </div>
     </div>
@@ -92,9 +87,11 @@
 <script>
 window.APP_VERSION = {{ app_version | tojson }};
 window.APP_LANG = {{ lang | tojson }};
+window.APP_UNITS = {{ units | tojson }};
+window.APP_THEME = {{ theme | tojson }};
 window.APP_I18N = {{ js_translations | tojson }};
+window.APP_STREAM_INTERVAL_MS = {{ stream_interval_ms | tojson }};
 </script>
-<script src="/static/{{ 'nl_app.js' if lang == 'nl' else 'en_app.js' }}?v={{ app_version }}"></script>
+<script src="/static/app.js?v={{ app_version }}"></script>
 </body>
 </html>
-

@@ -1,10 +1,16 @@
-<!-- Made by Boszhard Development -->
 <section class="page-screen page-home is-active" data-page="dashboard">
     <div class="scanner-home-stage">
         <div class="scanner-home-version" aria-label="OBD scanner version">
             <span>OBD-II</span>
             <strong>{{ app_version }}</strong>
         </div>
+
+        <section class="quick-metrics-grid home-mini-dashboard" aria-label="{{ i18n.home.mini_dashboard_title }}">
+            <article class="panel quick-metric"><span>{{ i18n.live.vehicle_speed }}</span><strong id="home-speed">--</strong></article>
+            <article class="panel quick-metric"><span>{{ i18n.live.engine_rpm }}</span><strong id="home-rpm">--</strong></article>
+            <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.coolant }}</span><strong id="home-coolant">--</strong></article>
+            <article class="panel quick-metric"><span>{{ i18n.live.quick_metrics.voltage }}</span><strong id="home-voltage">--</strong></article>
+        </section>
 
         <section class="tablet-launch-grid" aria-label="{{ i18n.partials.sidebar.brand_eyebrow }}">
             {% for card in i18n.home.cards %}

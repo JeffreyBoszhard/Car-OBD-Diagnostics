@@ -1,4 +1,3 @@
-# Made by Boszhard Development
 import json
 
 

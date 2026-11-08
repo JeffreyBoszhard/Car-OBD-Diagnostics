@@ -1,4 +1,3 @@
-/* Made by Boszhard Development */
 /* ============================================================
    OBD WORKSHOP SCANNER
    Visual language matched to the graph-recording export:
@@ -11,54 +10,80 @@
 *::after { box-sizing: border-box; }
 
 :root {
+    /* ========================================================
+       Instrument light: a clean technical workshop surface.
+       Cool paper-white panels on a faint blue bench, with one
+       signal-blue accent and a strict good/warn/fault triad.
+       ======================================================== */
+
     /* surfaces */
-    --bg:          #edf3f8;
+    --bg:          #e8eef6;
     --surface:     #ffffff;
-    --surface-2:   #f6f9fc;
-    --surface-3:   #f6f9fc;
-    --well:        #ffffff;
-    --hover:       #eef5fc;
+    --surface-2:   #f4f8fd;
+    --surface-3:   #eef4fb;
+    --well:        #fbfdff;
+    --hover:       #e9f2fe;
 
     /* lines */
-    --line:        #d5e0ea;
-    --line-soft:   #e0e8f1;
-    --line-strong: #bdd0e5;
+    --line:        #d3e0ee;
+    --line-soft:   #e3ebf4;
+    --line-strong: #b4c9e0;
 
     /* text */
-    --text-strong: #162237;
-    --text:        #172033;
-    --text-dim:    #62748d;
-    --text-mute:   #8496ac;
-    --muted:       #62748d;
+    --text-strong: #0b1726;
+    --text:        #16263b;
+    --text-dim:    #5b708c;
+    --text-mute:   #8095ad;
+    --muted:       #5b708c;
     --on-accent:   #ffffff;
 
-    /* signal colours - matched to the export series palette */
-    --accent:      #0d6efd;
-    --accent-deep: #0b57d0;
-    --accent-soft: #eef5fc;
-    --red:         #e14d4d;
-    --red-soft:    #fdeeee;
-    --green:       #0ca678;
-    --green-soft:  #e9f8f3;
-    --amber:       #f59f00;
-    --amber-soft:  #fff7e6;
-    --purple:      #845ef7;
-    --teal:        #12b886;
+    /* signal colours */
+    --accent:      #0a74e8;
+    --accent-deep: #0757b4;
+    --accent-soft: #e6f1fe;
+    --accent-glow: rgba(10, 116, 232, .28);
+    --cyan:        #0ea5c6;
+    --red:         #e03131;
+    --red-soft:    #fdebeb;
+    --green:       #0a9d6e;
+    --green-soft:  #e4f7f0;
+    --amber:       #e8930c;
+    --amber-soft:  #fff4e0;
+    --purple:      #7a52f0;
+    --teal:        #0eb08c;
+
+    /* instrument-specific */
+    --dial-face:    #f7fafd;
+    --dial-rim:     #cedcec;
+    --dial-ink:     #0b1726;
+    --dial-needle:  #e03131;
+    --readout-bg:   #0e1a2a;
+    --readout-ink:  #7ee0ff;
+    --led-off:      #c3d2e3;
 
     /* elevation */
-    --shadow-lg:   0 18px 44px rgba(34, 62, 96, .12);
-    --shadow:      0 12px 30px rgba(34, 62, 96, .08);
-    --shadow-sm:   0 6px 16px rgba(34, 62, 96, .07);
+    --shadow-lg:   0 22px 50px rgba(18, 48, 86, .14);
+    --shadow:      0 14px 32px rgba(18, 48, 86, .10);
+    --shadow-sm:   0 6px 16px rgba(18, 48, 86, .07);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .9);
+    --ring:        0 0 0 3px var(--accent-glow);
 
-    --sans:        Inter, "Segoe UI", Arial, sans-serif;
-    --mono:        ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+    --sans:        Inter, "Segoe UI", system-ui, Arial, sans-serif;
+    --mono:        "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 
     /* radii */
-    --r-hero:      22px;
+    --r-hero:      24px;
     --r-panel:     20px;
     --r-inner:     14px;
-    --r-btn:       14px;
+    --r-btn:       12px;
     --r-chip:      10px;
+
+    /* motion */
+    --ease-out:    cubic-bezier(.22, .68, .32, 1);
+    --ease-spring: cubic-bezier(.34, 1.4, .54, 1);
+    --t-fast:      .14s;
+    --t-base:      .24s;
+    --t-slow:      .42s;
 
     --rail-w:      196px;
 }
@@ -517,7 +542,7 @@ h1, h2, h3 { font-family: var(--sans); }
 .primary-toggle,
 .port-form button,
 .compact-action {
-    background: linear-gradient(180deg, #fff, var(--hover));
+    background: linear-gradient(180deg, var(--surface), var(--hover));
     border: 1px solid var(--line-strong);
     border-radius: var(--r-btn);
     box-shadow: 0 2px 5px rgba(34, 62, 96, .07);
@@ -566,7 +591,7 @@ h1, h2, h3 { font-family: var(--sans); }
 }
 
 .danger-action {
-    background: linear-gradient(180deg, #fff, #fdeeee);
+    background: linear-gradient(180deg, var(--surface), var(--red-soft));
     border-color: #f2b9b9;
     color: #c53434;
 }
@@ -589,7 +614,7 @@ h1, h2, h3 { font-family: var(--sans); }
 
 .icon-action {
     align-items: center;
-    background: linear-gradient(180deg, #fff, var(--hover));
+    background: linear-gradient(180deg, var(--surface), var(--hover));
     border: 1px solid var(--line-strong);
     border-radius: 11px;
     box-shadow: 0 2px 5px rgba(34, 62, 96, .07);
@@ -640,7 +665,7 @@ textarea {
 
 input::placeholder, textarea::placeholder { color: #9aabc0; font-weight: 500; }
 input:focus, select:focus, textarea:focus {
-    background: #fff;
+    background: var(--surface);
     border-color: var(--accent);
     box-shadow: 0 0 0 4px rgba(13, 110, 253, .12);
     outline: none;
@@ -688,7 +713,7 @@ label {
 }
 .port-dropdown-trigger:hover { border-color: #9dbbdd; }
 .port-dropdown-shell.is-open .port-dropdown-trigger {
-    background: #fff;
+    background: var(--surface);
     border-color: var(--accent);
     box-shadow: 0 0 0 4px rgba(13, 110, 253, .12);
 }
@@ -902,6 +927,7 @@ label {
     white-space: nowrap;
 }
 .sensor-row-meta { color: var(--text-mute); font-size: 10px; font-weight: 600; }
+.sensor-sparkline { height: 20px; margin-top: 2px; max-width: 140px; opacity: .75; width: 100%; }
 .sensor-value {
     color: var(--text-strong);
     font-size: 17px;
@@ -948,7 +974,7 @@ label {
 }
 .detail-row strong { color: var(--text-strong); font-size: 15px; font-weight: 900; text-align: right; }
 .detail-row-accent { background: var(--accent-soft); border-color: #bcd7fb; }
-.highlight-row { background: #fff; box-shadow: var(--shadow-sm); }
+.highlight-row { background: var(--surface); box-shadow: var(--shadow-sm); }
 
 .support-row > div { display: grid; gap: 3px; min-width: 0; }
 .support-row > div > strong { color: var(--text-strong); font-size: 14px; font-weight: 900; }
@@ -1067,7 +1093,7 @@ label {
 .pending-code-panel   .group-header span { background: var(--amber-soft);  border-color: #f7d59b; color: #b87503; }
 .permanent-code-panel .group-header span { background: var(--accent-soft); border-color: #bcd7fb; color: var(--accent-deep); }
 
-.codes { flex: 1 1 auto; overflow-y: auto; }
+.codes { align-content: start; flex: 1 1 auto; overflow-y: auto; }
 
 .code {
     background: var(--surface-2);
@@ -1132,7 +1158,7 @@ label {
 
 .scan-part-row {
     align-items: center;
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--line-soft);
     border-radius: 12px;
     display: grid;
@@ -1178,7 +1204,7 @@ label {
 
 .tach-face {
     aspect-ratio: 1;
-    background: radial-gradient(circle at center, #fff 0 58%, var(--surface-2) 59% 100%);
+    background: radial-gradient(circle at center, var(--surface) 0 58%, var(--surface-2) 59% 100%);
     border: 1px solid var(--line);
     border-radius: 50%;
     box-shadow: var(--shadow), inset 0 2px 14px rgba(34, 62, 96, .06);
@@ -1240,8 +1266,8 @@ label {
 }
 
 .needle-cap {
-    background: linear-gradient(180deg, #fff, var(--surface-2));
-    border: 4px solid #fff;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 4px solid var(--surface);
     border-radius: 50%;
     box-shadow: var(--shadow-sm);
     height: 38px;
@@ -1281,7 +1307,7 @@ label {
 
 .score-ring {
     align-items: center;
-    background: #fff;
+    background: var(--surface);
     border: 5px solid var(--accent);
     border-radius: 50%;
     box-shadow: var(--shadow-sm);
@@ -1449,6 +1475,14 @@ label {
     text-transform: uppercase;
 }
 .quick-metric strong { color: var(--text-strong); font-size: 24px; font-weight: 900; letter-spacing: -.02em; }
+
+.home-mini-dashboard { grid-template-columns: repeat(4, minmax(120px, 1fr)); margin: 0 0 22px; max-width: 760px; width: 100%; }
+
+#maintenance-reminder-banner.is-overdue { color: var(--red); font-weight: 700; }
+
+.accel-timer-readout { align-items: center; display: flex; flex-direction: column; gap: 4px; padding: 18px 0; }
+.accel-timer-readout strong { color: var(--text-strong); font-size: 40px; font-weight: 900; letter-spacing: -.02em; }
+.accel-timer-readout span { color: var(--text-dim); font-size: 13px; font-weight: 700; }
 
 .health-score-row { align-items: center; display: flex; gap: 18px; }
 .score-copy { display: grid; gap: 10px; min-width: 0; }
@@ -1621,6 +1655,31 @@ label {
 .setup-guide ol { color: var(--text-dim); font-size: 12px; line-height: 1.7; margin: 0; padding-left: 18px; }
 .warning-panel { border-color: #f2b9b9; }
 
+/* BLUETOOTH PANEL */
+.bluetooth-scan-box { display: grid; gap: 10px; margin-top: 12px; }
+.bluetooth-device-list { display: grid; gap: 8px; }
+.bluetooth-device-option {
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-inner);
+    cursor: pointer;
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    text-align: left;
+    transition: border-color .15s ease, box-shadow .15s ease;
+    width: 100%;
+}
+.bluetooth-device-option:hover { border-color: var(--accent); }
+.bluetooth-device-option.is-selected {
+    border-color: var(--accent-deep);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.bluetooth-device-option-info { display: grid; gap: 1px; min-width: 0; }
+.bluetooth-device-option-info strong { color: var(--text-strong); font-size: 13px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bluetooth-device-option-info span { color: var(--text-dim); font-size: 11px; font-weight: 600; }
+
 .report-layout {
     align-items: start;
     display: grid;
@@ -1629,13 +1688,313 @@ label {
 }
 .scanner-report-side { align-content: start; display: grid; gap: 16px; }
 
-.garage-layout {
+.garage-page-stack { display: grid; gap: 26px; }
+.garage-section-grid {
     align-items: start;
     display: grid;
     gap: 16px;
     grid-template-columns: minmax(330px, .95fr) minmax(0, 1.25fr);
 }
+.garage-vehicles-form {
+    align-items: end;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(180px, 1.3fr) minmax(150px, 1fr) minmax(120px, 1fr) auto;
+}
+.garage-vehicles-form > div { display: grid; gap: 4px; min-width: 0; }
+.garage-vehicles-form button { margin: 0; white-space: nowrap; }
+.garage-vehicle-chip-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.garage-vehicle-chip-list .empty { color: var(--text-mute); font-size: 13px; }
+.garage-vehicle-chip {
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: 999px;
+    display: flex;
+    gap: 10px;
+    padding: 7px 7px 7px 16px;
+}
+.garage-vehicle-chip.is-active { background: var(--accent-soft); border-color: #bcd7fb; }
+.garage-vehicle-chip-info { display: grid; gap: 1px; min-width: 0; }
+.garage-vehicle-chip-info strong { color: var(--text-strong); font-size: 13px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.garage-vehicle-chip-info span { color: var(--text-mute); font-size: 10px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.garage-vehicle-chip-actions { align-items: center; display: flex; flex: 0 0 auto; gap: 4px; }
+.garage-vehicle-chip-actions button { margin: 0; }
 .garage-identity-fields { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* ============================================================
+   VEHICLE PICKER
+   Custom searchable combobox for tagging a garage note or fuel
+   log entry to one of the saved car profiles. Search matches
+   nickname, plate, VIN, brand, model and year.
+   ============================================================ */
+.vehicle-picker { position: relative; }
+.vehicle-picker-trigger {
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-btn);
+    cursor: pointer;
+    display: flex;
+    font: inherit;
+    gap: 8px;
+    justify-content: space-between;
+    padding: 11px 14px;
+    text-align: left;
+    width: 100%;
+}
+.vehicle-picker-trigger:hover { border-color: #9dbbdd; }
+.vehicle-picker-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vehicle-picker-trigger-text { color: var(--text-strong); font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vehicle-picker-trigger-text.is-placeholder { color: var(--text-mute); font-weight: 500; }
+.vehicle-picker-trigger-icon { color: var(--text-mute); flex: 0 0 auto; font-size: 10px; transition: transform .18s ease; }
+.vehicle-picker-trigger[aria-expanded="true"] .vehicle-picker-trigger-icon { transform: rotate(180deg); }
+
+.vehicle-picker-panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-inner);
+    box-shadow: var(--shadow-lg);
+    left: 0;
+    margin-top: 6px;
+    opacity: 0;
+    overflow: hidden;
+    position: absolute;
+    right: 0;
+    top: 100%;
+    transform: translateY(-6px) scale(.98);
+    transform-origin: top;
+    transition: opacity .16s ease, transform .16s ease;
+    z-index: 60;
+}
+.vehicle-picker-panel.is-open { opacity: 1; transform: translateY(0) scale(1); }
+.vehicle-picker-search {
+    background: var(--surface);
+    border: 0;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--text-strong);
+    font: inherit;
+    padding: 12px 14px;
+    width: 100%;
+}
+.vehicle-picker-search:focus { background: var(--hover); outline: none; }
+.vehicle-picker-options { display: grid; gap: 2px; max-height: 240px; overflow-y: auto; padding: 6px; }
+.vehicle-picker-option {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    font: inherit;
+    gap: 10px;
+    justify-content: space-between;
+    padding: 9px 10px;
+    text-align: left;
+    width: 100%;
+}
+.vehicle-picker-option:hover { background: var(--hover); }
+.vehicle-picker-option-main { display: grid; gap: 1px; min-width: 0; }
+.vehicle-picker-option-main strong { color: var(--text-strong); font-size: 13px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vehicle-picker-option-main span { color: var(--text-dim); font-size: 11px; font-weight: 600; }
+.vehicle-picker-option-meta { color: var(--text-mute); flex: 0 0 auto; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.vehicle-picker-empty { color: var(--text-mute); font-size: 12px; padding: 16px; text-align: center; }
+.vehicle-picker-clear { background: none; border: 0; border-top: 1px solid var(--line-soft); color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 800; padding: 10px 14px; text-align: left; width: 100%; }
+.vehicle-picker-clear:hover { background: var(--hover); }
+
+.field-optional-tag {
+    background: var(--surface-2);
+    border-radius: 999px;
+    color: var(--text-mute);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .06em;
+    padding: 2px 7px;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
+/* FUEL LOG CARD */
+#garage-note-vehicle-label,
+#fuel-log-vehicle-label {
+    color: var(--text-dim);
+    display: block;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .1em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+}
+.fuel-log-form { display: grid; gap: 16px; }
+.fuel-log-vehicle-row { display: grid; }
+.fuel-log-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.fuel-log-field {
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-inner);
+    display: flex;
+    gap: 11px;
+    padding: 9px 12px;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.fuel-log-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.fuel-log-field-wide { grid-column: 1 / -1; }
+.fuel-log-field-badge {
+    align-items: center;
+    background: var(--accent-soft);
+    border-radius: 10px;
+    color: var(--accent-deep);
+    display: flex;
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 900;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+}
+.fuel-log-field-body { display: grid; flex: 1 1 auto; gap: 1px; min-width: 0; }
+.fuel-log-field-body label {
+    color: var(--text-mute);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.fuel-log-field-body input {
+    background: transparent;
+    border: 0;
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 700;
+    padding: 2px 0 0;
+    width: 100%;
+}
+.fuel-log-field-body input:focus { box-shadow: none; outline: none; }
+.fuel-log-form-actions { display: flex; gap: 10px; }
+.fuel-log-form-actions button { margin: 0; width: auto; }
+@media (max-width: 560px) {
+    .fuel-log-grid { grid-template-columns: 1fr; }
+}
+
+/* YEAR STEPPER (fully custom, no native number spinner) */
+.year-stepper {
+    align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-inner);
+    display: flex;
+    overflow: hidden;
+}
+.year-stepper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.year-stepper input {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+}
+.year-stepper input:focus { box-shadow: none; outline: none; }
+.year-stepper-button {
+    background: var(--surface-2);
+    border: 0;
+    color: var(--text-dim);
+    cursor: pointer;
+    flex: 0 0 auto;
+    font-size: 15px;
+    font-weight: 900;
+    margin: 0;
+    padding: 0;
+    transition: background .15s ease, color .15s ease;
+    width: 36px;
+}
+.year-stepper-button:hover { background: var(--accent-soft); color: var(--accent-deep); }
+.year-stepper-button:active { background: var(--accent); color: var(--on-accent); }
+
+/* UNIT-SUFFIX INPUT (e.g. tank size in L / gal) */
+.unit-suffix-field {
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-inner);
+    display: flex;
+    overflow: hidden;
+}
+.unit-suffix-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.unit-suffix-field input { background: transparent; border: 0; border-radius: 0; flex: 1 1 auto; min-width: 0; }
+.unit-suffix-field input:focus { box-shadow: none; outline: none; }
+.unit-suffix-badge {
+    color: var(--text-mute);
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 0 12px 0 4px;
+    text-transform: uppercase;
+}
+
+/* FIELD TOOLTIPS (fully custom, no native title attribute) */
+.field-hint {
+    color: var(--text-mute);
+    cursor: help;
+    display: inline-block;
+    font-size: 12px;
+    font-style: normal;
+    position: relative;
+}
+.field-hint::after {
+    background: var(--text-strong);
+    border-radius: 8px;
+    bottom: calc(100% + 8px);
+    color: var(--surface);
+    content: attr(data-tooltip);
+    font-size: 11px;
+    font-weight: 600;
+    left: 0;
+    line-height: 1.4;
+    opacity: 0;
+    padding: 8px 10px;
+    pointer-events: none;
+    position: absolute;
+    transform: translateY(4px);
+    transition: opacity .15s ease, transform .15s ease;
+    width: 210px;
+    z-index: 20;
+}
+.field-hint:hover::after,
+.field-hint:focus-visible::after {
+    opacity: 1;
+    transform: translateY(0);
+}
+.field-inline-note { margin-top: 6px; }
+
+/* Picker-linked identity fields: auto-filled and locked while a vehicle is selected */
+.is-picker-linked {
+    background: var(--surface-2) !important;
+    color: var(--text-dim);
+    cursor: not-allowed;
+}
+
+/* Tank fill-level bar on a fuel log history entry */
+.fuel-log-tank-bar {
+    background: var(--line-soft);
+    border-radius: 999px;
+    height: 5px;
+    margin-top: 6px;
+    overflow: hidden;
+    width: 100%;
+}
+.fuel-log-tank-bar-fill {
+    background: linear-gradient(90deg, #0d6efd, #0ca678);
+    border-radius: 999px;
+    height: 100%;
+    transition: width .3s ease;
+}
+
 .garage-photo-row { display: grid; gap: 6px; margin-top: 12px; }
 .garage-form-actions { display: flex; gap: 10px; margin-top: 14px; }
 .garage-form-actions button { margin: 0; width: auto; }
@@ -1662,7 +2021,7 @@ label {
 .garage-note-content { display: grid; gap: 6px; min-width: 0; }
 .garage-note-meta { display: flex; flex-wrap: wrap; gap: 6px; }
 .garage-note-meta span {
-    background: #fff;
+    background: var(--surface);
     border: 1px solid var(--line-soft);
     border-radius: 999px;
     color: var(--text-dim);
@@ -1757,7 +2116,7 @@ label {
 .system-language-dropdown { position: relative; }
 .system-language-trigger {
     align-items: center;
-    background: linear-gradient(180deg, #fff, var(--hover));
+    background: linear-gradient(180deg, var(--surface), var(--hover));
     border: 1px solid var(--line-strong);
     border-radius: var(--r-btn);
     cursor: pointer;
@@ -1904,8 +2263,6 @@ label {
 }
 .setup-option strong { color: var(--text-strong); display: block; font-size: 14px; font-weight: 900; }
 .setup-option small { color: var(--text-mute); font-size: 12px; }
-.setup-mysql-fields { display: grid; gap: 8px; margin-bottom: 16px; }
-.setup-mysql-fields[hidden] { display: none !important; }
 
 .changelog-dialog { max-width: 560px; width: min(100%, 560px); }
 .changelog-entries { max-height: 52vh; overflow-y: auto; }
@@ -1974,7 +2331,7 @@ label {
     .live-command-grid,
     .vehicle-layout,
     .report-layout,
-    .garage-layout,
+    .garage-section-grid,
     .purchase-layout,
     .sensor-support-layout,
     .system-console-layout,
@@ -1999,8 +2356,10 @@ label {
     .rdw-result-grid,
     .rdw-highlight-strip,
     .garage-identity-fields,
+    .garage-vehicles-form,
     .vehicle-summary-grid,
     .profile-button-row { grid-template-columns: 1fr; }
+    .garage-vehicles-form button { width: 100%; }
     .feature-card-wide { grid-column: auto; }
 }
 
@@ -2315,14 +2674,14 @@ a.secondary-action:focus-visible,
 
 /* v0.6.5 clean white sidebar and home launcher */
 :root {
-    --clean-bg: #eaf2f8;
+    --clean-bg: #e8eef6;
     --clean-surface: #ffffff;
-    --clean-line: #d7e4ef;
-    --clean-text: #172033;
-    --clean-muted: #61728c;
-    --clean-blue: #2f80ff;
-    --clean-shadow: 0 14px 30px rgba(33, 61, 96, 0.13);
-    --clean-soft-shadow: 0 10px 24px rgba(33, 61, 96, 0.09);
+    --clean-line: #d3e0ee;
+    --clean-text: #16263b;
+    --clean-muted: #5b708c;
+    --clean-blue: #0a74e8;
+    --clean-shadow: 0 16px 34px rgba(18, 48, 86, .13);
+    --clean-soft-shadow: 0 10px 24px rgba(18, 48, 86, .09);
 }
 
 body,
@@ -2781,9 +3140,7 @@ body::before {
 }
 
 .codes {
-    display: grid;
     gap: 8px;
-    max-height: 560px;
     padding-right: 4px;
 }
 
@@ -2839,16 +3196,6 @@ body::before {
 }
 
 .setup-select,
-.setup-mysql-fields input {
-    background: var(--surface-2);
-    border: 1px solid var(--line-soft);
-    border-radius: 12px;
-    color: var(--text-strong);
-    font: inherit;
-    font-weight: 800;
-    padding: 11px 12px;
-    width: 100%;
-}
 
 .setup-select { margin-bottom: 16px; }
 .setup-result { color: var(--text-dim); font-size: 12px; font-weight: 800; min-height: 18px; }
@@ -2950,11 +3297,7 @@ body::before {
 }
 
 .codes {
-    align-content: start !important;
-    display: grid !important;
     gap: 10px !important;
-    max-height: 600px !important;
-    overflow-y: auto !important;
 }
 
 .code {
@@ -3014,7 +3357,6 @@ body::before {
 
 .codes {
     gap: 12px !important;
-    max-height: 680px !important;
 }
 
 .code {
@@ -3373,4 +3715,1216 @@ body::before {
     color: #62748d !important;
     font-size: 15px !important;
     line-height: 1.05 !important;
+}
+
+/* ============================================================
+   DARK THEME
+   Overrides the semantic surface/text/line/shadow variables (and the
+   later "--clean-*" variable layer) so every rule that already reads
+   from them repaints automatically - no need to touch each consuming
+   rule individually. Signal colours (accent/red/green/amber/button
+   gradients) are left as-is since they read fine on both backgrounds.
+   Applies when explicitly set via the System page Theme switcher
+   (data-theme="dark"/"light" on <html>), or automatically for "Auto"
+   when the OS/browser prefers a dark colour scheme.
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    /* ========================================================
+       Instrument dark: the look of a real scan tool in a bay.
+       Graphite housing, slightly blue-lit panels, a cyan-lean
+       accent that reads well on a dim screen.
+       ======================================================== */
+
+    /* surfaces */
+    --bg:          #080d14;
+    --surface:     #111a26;
+    --surface-2:   #16212f;
+    --surface-3:   #1b2938;
+    --well:        #0c141e;
+    --hover:        #1f3045;
+
+    /* lines */
+    --line:        #233347;
+    --line-soft:   #1b2838;
+    --line-strong: #354a63;
+
+    /* text */
+    --text-strong: #f3f8ff;
+    --text:        #d9e5f3;
+    --text-dim:    #93a8c2;
+    --text-mute:   #6d83a0;
+    --muted:       #93a8c2;
+    --on-accent:   #04131f;
+
+    /* signal colours */
+    --accent:      #2ea8ff;
+    --accent-deep: #0b7fd4;
+    --accent-soft: #11263d;
+    --accent-glow: rgba(46, 168, 255, .32);
+    --cyan:        #35d6f5;
+    --red:         #ff5d5d;
+    --red-soft:    #2d1519;
+    --green:       #22d39a;
+    --green-soft:  #0d2a22;
+    --amber:       #ffb224;
+    --amber-soft:  #2e2109;
+    --purple:      #a78bff;
+    --teal:        #2bd6ae;
+
+    /* instrument-specific */
+    --dial-face:    #0d1720;
+    --dial-rim:     #2a3c52;
+    --dial-ink:     #e8f3ff;
+    --dial-needle:  #ff5d5d;
+    --readout-bg:   #040f18;
+    --readout-ink:  #4fe3ff;
+    --led-off:      #27384d;
+
+    /* elevation */
+    --shadow-lg:   0 24px 56px rgba(0, 0, 0, .58);
+    --shadow:      0 16px 36px rgba(0, 0, 0, .46);
+    --shadow-sm:   0 6px 18px rgba(0, 0, 0, .38);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .05);
+    --ring:        0 0 0 3px var(--accent-glow);
+
+    --clean-bg:          #080d14;
+    --clean-surface:     #111a26;
+    --clean-line:        #233347;
+    --clean-text:        #f3f8ff;
+    --clean-muted:       #93a8c2;
+    --clean-blue:        #2ea8ff;
+    --clean-shadow:      0 18px 38px rgba(0, 0, 0, .52);
+    --clean-soft-shadow: 0 12px 26px rgba(0, 0, 0, .42);
+}
+}
+
+:root[data-theme="dark"] {
+    /* ========================================================
+       Instrument dark: the look of a real scan tool in a bay.
+       Graphite housing, slightly blue-lit panels, a cyan-lean
+       accent that reads well on a dim screen.
+       ======================================================== */
+
+    /* surfaces */
+    --bg:          #080d14;
+    --surface:     #111a26;
+    --surface-2:   #16212f;
+    --surface-3:   #1b2938;
+    --well:        #0c141e;
+    --hover:        #1f3045;
+
+    /* lines */
+    --line:        #233347;
+    --line-soft:   #1b2838;
+    --line-strong: #354a63;
+
+    /* text */
+    --text-strong: #f3f8ff;
+    --text:        #d9e5f3;
+    --text-dim:    #93a8c2;
+    --text-mute:   #6d83a0;
+    --muted:       #93a8c2;
+    --on-accent:   #04131f;
+
+    /* signal colours */
+    --accent:      #2ea8ff;
+    --accent-deep: #0b7fd4;
+    --accent-soft: #11263d;
+    --accent-glow: rgba(46, 168, 255, .32);
+    --cyan:        #35d6f5;
+    --red:         #ff5d5d;
+    --red-soft:    #2d1519;
+    --green:       #22d39a;
+    --green-soft:  #0d2a22;
+    --amber:       #ffb224;
+    --amber-soft:  #2e2109;
+    --purple:      #a78bff;
+    --teal:        #2bd6ae;
+
+    /* instrument-specific */
+    --dial-face:    #0d1720;
+    --dial-rim:     #2a3c52;
+    --dial-ink:     #e8f3ff;
+    --dial-needle:  #ff5d5d;
+    --readout-bg:   #040f18;
+    --readout-ink:  #4fe3ff;
+    --led-off:      #27384d;
+
+    /* elevation */
+    --shadow-lg:   0 24px 56px rgba(0, 0, 0, .58);
+    --shadow:      0 16px 36px rgba(0, 0, 0, .46);
+    --shadow-sm:   0 6px 18px rgba(0, 0, 0, .38);
+    --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .05);
+    --ring:        0 0 0 3px var(--accent-glow);
+
+    --clean-bg:          #080d14;
+    --clean-surface:     #111a26;
+    --clean-line:        #233347;
+    --clean-text:        #f3f8ff;
+    --clean-muted:       #93a8c2;
+    --clean-blue:        #2ea8ff;
+    --clean-shadow:      0 18px 38px rgba(0, 0, 0, .52);
+    --clean-soft-shadow: 0 12px 26px rgba(0, 0, 0, .42);
+}
+
+::-webkit-scrollbar-thumb { background-color: var(--line-strong); }
+
+/* ============================================================================
+   v0.8 INSTRUMENT LAYER
+   ----------------------------------------------------------------------------
+   The structural stylesheet above lays the dashboard out. This layer gives it
+   the finish of a real diagnostic tool: a machined housing, panels that read
+   as instrument modules, mono numerals on dark readouts, status LEDs that
+   actually pulse while data is live, and motion that is quick and physical
+   rather than decorative.
+
+   Everything here is tokenised, so it follows light/dark automatically, and
+   every animation is disabled under prefers-reduced-motion at the end of the
+   file.
+   ========================================================================= */
+
+/* ---------------------------------------------------------------- keyframes */
+@keyframes inst-rise {
+    from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.985); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes inst-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes inst-slide-right {
+    from { opacity: 0; transform: translate3d(-10px, 0, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes inst-pop {
+    0%   { opacity: 0; transform: scale(.92); }
+    70%  { opacity: 1; transform: scale(1.015); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes inst-led-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); opacity: 1; }
+    50%      { box-shadow: 0 0 0 6px transparent; opacity: .72; }
+}
+
+@keyframes inst-value-flash {
+    0%   { background-color: var(--accent-soft); }
+    100% { background-color: transparent; }
+}
+
+@keyframes inst-shimmer {
+    from { background-position: -340px 0; }
+    to   { background-position: 340px 0; }
+}
+
+@keyframes inst-sweep {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(260%); }
+}
+
+@keyframes inst-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes inst-scanline {
+    from { transform: translateY(-100%); }
+    to   { transform: translateY(1400%); }
+}
+
+@keyframes inst-breathe {
+    0%, 100% { opacity: .35; }
+    50%      { opacity: .75; }
+}
+
+/* ----------------------------------------------------------- base polish */
+body {
+    font-feature-settings: "cv05" 1, "ss01" 1;
+    letter-spacing: -0.005em;
+}
+
+/* Numbers in an instrument must not jiggle as they change. */
+.quick-metric strong,
+.metric-panel strong,
+.detail-row strong,
+.sensor-value,
+.live-pill strong,
+.status-chip strong,
+.accel-timer-readout,
+.speed-readout,
+#rpm-value,
+#speed-value,
+.trip-metric strong,
+.health-score-row strong {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+}
+
+#rpm-value,
+#speed-value,
+.speed-readout,
+.accel-timer-readout {
+    font-family: var(--mono);
+    letter-spacing: -0.02em;
+}
+
+::selection {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+/* Visible, consistent keyboard focus everywhere. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+    border-radius: var(--r-btn);
+}
+
+/* ------------------------------------------------------- the housing */
+.tablet-frame {
+    perspective: 1600px;
+}
+
+.tablet-bezel {
+    background:
+        linear-gradient(160deg, color-mix(in srgb, var(--surface-2) 88%, var(--accent) 12%) 0%, var(--surface) 42%, var(--surface-3) 100%);
+    box-shadow:
+        var(--shadow-lg),
+        var(--shadow-inset),
+        0 0 0 1px var(--line);
+    animation: inst-rise var(--t-slow) var(--ease-out) both;
+}
+
+.tablet-screen {
+    position: relative;
+    isolation: isolate;
+}
+
+/* A faint instrument glow along the top edge of the screen. */
+.tablet-screen::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), var(--cyan), transparent);
+    opacity: .5;
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* --------------------------------------------------------------- sidebar */
+.tablet-sidebar,
+.sidebar-panel {
+    position: relative;
+}
+
+.module-nav .module-button {
+    position: relative;
+    transition:
+        background-color var(--t-fast) var(--ease-out),
+        color var(--t-fast) var(--ease-out),
+        transform var(--t-fast) var(--ease-out);
+}
+
+/* The active-module marker slides rather than blinking between items. */
+.module-nav .module-button::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 0;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, var(--accent), var(--cyan));
+    transform: translateY(-50%);
+    transition: height var(--t-base) var(--ease-spring);
+}
+
+.module-nav .module-button:hover {
+    transform: translateX(2px);
+}
+
+.module-nav .module-button.is-active::before,
+.module-nav .module-button[aria-current="page"]::before {
+    height: 62%;
+}
+
+.module-nav .module-button .module-icon {
+    transition: transform var(--t-base) var(--ease-spring);
+}
+
+.module-nav .module-button:hover .module-icon {
+    transform: scale(1.12) rotate(-3deg);
+}
+
+.brand-icon {
+    position: relative;
+    overflow: hidden;
+}
+
+.brand-icon::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: inst-sweep 6s var(--ease-out) 1.2s infinite;
+}
+
+/* ---------------------------------------------------------------- topbar */
+.topbar {
+    position: relative;
+}
+
+.status-chip {
+    position: relative;
+    transition:
+        border-color var(--t-fast) var(--ease-out),
+        background-color var(--t-fast) var(--ease-out),
+        transform var(--t-fast) var(--ease-out);
+}
+
+.status-chip:hover {
+    transform: translateY(-1px);
+    border-color: var(--line-strong);
+}
+
+.status-chip .chip-label {
+    font-size: 9.5px;
+    letter-spacing: .14em;
+}
+
+/* The live-data chip gets an LED that only pulses while data flows. */
+.live-chip::before {
+    content: "";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--led-off);
+    transition: background-color var(--t-base) var(--ease-out);
+}
+
+body[data-live="1"] .live-chip::before {
+    background: var(--green);
+    animation: inst-led-pulse 1.8s var(--ease-out) infinite;
+}
+
+/* ------------------------------------------------------ stream indicator */
+.stream-indicator {
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    display: inline-flex;
+    gap: 7px;
+    padding: 6px 12px 6px 10px;
+    transition: border-color var(--t-base) var(--ease-out), background-color var(--t-base) var(--ease-out);
+}
+
+.stream-indicator .stream-label {
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+}
+
+.stream-indicator .stream-dot {
+    background: var(--led-off);
+    border-radius: 50%;
+    flex: 0 0 auto;
+    height: 8px;
+    width: 8px;
+    transition: background-color var(--t-base) var(--ease-out);
+}
+
+.stream-indicator.is-live {
+    border-color: color-mix(in srgb, var(--green) 45%, var(--line));
+    background: var(--green-soft);
+}
+
+.stream-indicator.is-live .stream-dot {
+    background: var(--green);
+    animation: inst-led-pulse 1.9s var(--ease-out) infinite;
+}
+
+.stream-indicator.is-live .stream-label {
+    color: var(--green);
+}
+
+.stream-indicator.is-fallback {
+    border-color: color-mix(in srgb, var(--amber) 45%, var(--line));
+    background: var(--amber-soft);
+}
+
+.stream-indicator.is-fallback .stream-dot {
+    background: var(--amber);
+}
+
+.stream-indicator.is-fallback .stream-label {
+    color: var(--amber);
+}
+
+.stream-indicator[data-state="connecting"] .stream-dot {
+    animation: inst-breathe 1.4s var(--ease-out) infinite;
+}
+
+/* ---------------------------------------------------------------- panels */
+.panel,
+.graph-card,
+.spec-card,
+.feature-card,
+.metric-panel,
+.health-panel,
+.vehicle-subsection-card,
+.scanner-garage-history-panel {
+    position: relative;
+    transition:
+        transform var(--t-base) var(--ease-out),
+        box-shadow var(--t-base) var(--ease-out),
+        border-color var(--t-base) var(--ease-out);
+}
+
+/* A hairline of light along the top edge: the cue that reads as "module". */
+.panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 18px auto 18px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+    opacity: .9;
+    pointer-events: none;
+}
+
+.panel:hover {
+    box-shadow: var(--shadow-lg);
+    border-color: var(--line-strong);
+    transform: translateY(-2px);
+}
+
+.panel-heading,
+.compact-heading {
+    align-items: center;
+    gap: 10px;
+}
+
+.eyebrow {
+    position: relative;
+    padding-left: 12px;
+}
+
+.eyebrow::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Pages fade their panels in, staggered, so a switch feels like a tool
+   drawing a screen rather than a browser swapping HTML. */
+.page-screen.is-active .panel,
+.page-screen.is-active .graph-card,
+.page-screen.is-active .feature-card,
+.page-screen.is-active .spec-card {
+    animation: inst-rise var(--t-slow) var(--ease-out) both;
+}
+
+.page-screen.is-active > *:nth-child(1) { animation-delay: 0ms; }
+.page-screen.is-active > *:nth-child(2) { animation-delay: 40ms; }
+.page-screen.is-active > *:nth-child(3) { animation-delay: 80ms; }
+.page-screen.is-active > *:nth-child(4) { animation-delay: 120ms; }
+.page-screen.is-active > *:nth-child(5) { animation-delay: 160ms; }
+.page-screen.is-active > *:nth-child(6) { animation-delay: 200ms; }
+.page-screen.is-active > *:nth-child(n+7) { animation-delay: 240ms; }
+
+/* ------------------------------------------------------------- buttons */
+.secondary-action,
+.primary-cta,
+.inline-action,
+.compact-action,
+.poll-profile-button,
+.demo-preset-button,
+.icon-action {
+    position: relative;
+    overflow: hidden;
+    transition:
+        transform var(--t-fast) var(--ease-out),
+        box-shadow var(--t-fast) var(--ease-out),
+        background-color var(--t-fast) var(--ease-out),
+        border-color var(--t-fast) var(--ease-out),
+        color var(--t-fast) var(--ease-out);
+}
+
+.secondary-action:hover:not(:disabled),
+.primary-cta:hover:not(:disabled),
+.inline-action:hover:not(:disabled),
+.poll-profile-button:hover:not(:disabled),
+.demo-preset-button:hover:not(:disabled) {
+    transform: translateY(-1.5px);
+    box-shadow: var(--shadow);
+}
+
+.secondary-action:active:not(:disabled),
+.primary-cta:active:not(:disabled),
+.inline-action:active:not(:disabled),
+.poll-profile-button:active:not(:disabled),
+.demo-preset-button:active:not(:disabled),
+.icon-action:active:not(:disabled) {
+    transform: translateY(1px) scale(.985);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Light wipes across a button on hover - subtle, and only on real buttons. */
+.secondary-action::after,
+.primary-cta::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--accent) 16%, transparent) 50%, transparent 65%);
+    opacity: 0;
+    transition: opacity var(--t-base) var(--ease-out);
+    pointer-events: none;
+}
+
+.secondary-action:hover:not(:disabled)::after,
+.primary-cta:hover:not(:disabled)::after {
+    opacity: 1;
+}
+
+/* A button mid-request says so. */
+.secondary-action.connecting,
+.secondary-action.is-busy,
+.primary-cta.is-busy {
+    background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
+    background-size: 340px 100%;
+    background-repeat: no-repeat;
+    animation: inst-shimmer 1.1s linear infinite;
+}
+
+/* The clear-codes button is the one destructive control in the app, so it
+   looks like it: a fault-red outline that fills on hover. */
+#clear-button,
+#clear-button-codes {
+    border-color: color-mix(in srgb, var(--red) 42%, var(--line)) !important;
+    color: var(--red) !important;
+}
+
+#clear-button:hover:not(:disabled),
+#clear-button-codes:hover:not(:disabled) {
+    background: var(--red) !important;
+    border-color: var(--red) !important;
+    color: #fff !important;
+}
+
+#clear-button:disabled,
+#clear-button-codes:disabled {
+    border-color: var(--line) !important;
+    color: var(--text-mute) !important;
+}
+
+/* --------------------------------------------------------------- gauges */
+.scanner-gauge-card,
+.speed-gauge-panel {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Dial face: a real instrument has a rim, a vignette and a cold highlight. */
+.scanner-gauge-card::after,
+.speed-gauge-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+        radial-gradient(90% 70% at 50% 120%, rgba(0, 0, 0, .10), transparent 55%);
+    pointer-events: none;
+}
+
+.needle,
+.speed-needle,
+#rpm-needle,
+#speed-needle {
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35));
+    transform-origin: bottom center;
+    /* The needle is positioned by JS every frame; a short transition
+       smooths the steps without lagging behind the real value. */
+    transition: transform 90ms linear;
+}
+
+.needle-cap {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .4), var(--shadow-inset);
+}
+
+.tick {
+    transition: opacity var(--t-base) var(--ease-out), background-color var(--t-base) var(--ease-out);
+}
+
+/* Redline: the top of the tach scale reads as a warning band. */
+.tick:nth-last-child(-n+4) {
+    background: var(--red) !important;
+    opacity: .85;
+}
+
+#rpm-value,
+#speed-value {
+    text-shadow: 0 0 22px var(--accent-glow);
+}
+
+/* --------------------------------------------------- readouts and metrics */
+.quick-metric,
+.metric-panel,
+.live-pill {
+    transition:
+        transform var(--t-fast) var(--ease-out),
+        border-color var(--t-fast) var(--ease-out),
+        background-color var(--t-base) var(--ease-out);
+}
+
+.quick-metric:hover,
+.metric-panel:hover {
+    transform: translateY(-2px);
+    border-color: var(--line-strong);
+}
+
+/* A value that just changed flashes once. JS adds .is-updated. */
+.sensor-row.is-updated .sensor-value,
+.quick-metric.is-updated strong,
+.detail-row.is-updated strong {
+    animation: inst-value-flash var(--t-slow) var(--ease-out);
+    border-radius: 6px;
+}
+
+.sensor-row {
+    transition: background-color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
+}
+
+.sensor-row:hover {
+    background: var(--hover);
+    transform: translateX(2px);
+}
+
+.sensor-warning-badge {
+    animation: inst-pop var(--t-base) var(--ease-spring);
+}
+
+/* Stale data is visibly stale rather than silently old. */
+.sensor-row.is-stale .sensor-value,
+.quick-metric.is-stale strong {
+    color: var(--text-mute);
+    position: relative;
+}
+
+.sensor-row.is-stale .sensor-value::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 -3px 0;
+    height: 1px;
+    background: repeating-linear-gradient(90deg, var(--amber) 0 4px, transparent 4px 8px);
+}
+
+/* ------------------------------------------------------------ fault codes */
+.code,
+.history-row {
+    position: relative;
+    animation: inst-rise var(--t-base) var(--ease-out) both;
+    transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
+}
+
+.code:hover,
+.history-row:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Severity ribbon down the left edge. */
+.code::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 3px;
+    border-radius: 3px;
+    background: var(--line-strong);
+}
+
+.code.severity-high::before { background: var(--red); }
+.code.severity-medium::before { background: var(--amber); }
+.code.severity-low::before { background: var(--green); }
+
+/* A misfire code is the one fault worth spotting from across the bay. */
+.code.misfire {
+    border-color: color-mix(in srgb, var(--red) 40%, var(--line)) !important;
+}
+
+.code.misfire::before {
+    background: var(--red);
+    animation: inst-breathe 1.8s var(--ease-out) infinite;
+}
+
+.code > strong,
+.code .code-meta {
+    font-family: var(--mono);
+    letter-spacing: -0.01em;
+}
+
+.code .code-meta {
+    font-size: 11px;
+}
+
+/* ---------------------------------------------------------- scan progress */
+.scan-progress-bar-track {
+    overflow: hidden;
+    position: relative;
+}
+
+.scan-progress-bar-fill {
+    position: relative;
+    transition: width var(--t-slow) var(--ease-out);
+    background: linear-gradient(90deg, var(--accent), var(--cyan));
+}
+
+.scan-progress-bar-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .45), transparent);
+    animation: inst-shimmer 1.3s linear infinite;
+}
+
+.scan-part-row {
+    animation: inst-slide-right var(--t-base) var(--ease-out) both;
+    transition: background-color var(--t-base) var(--ease-out), border-color var(--t-base) var(--ease-out);
+}
+
+/* Each step's own state, legible at a glance. */
+.scan-part-row[data-status="complete"] .scan-part-icon,
+.scan-part-row[data-status="no_faults"] .scan-part-icon { color: var(--green); }
+.scan-part-row[data-status="faults_found"] .scan-part-icon { color: var(--red); }
+.scan-part-row[data-status="warning"] .scan-part-icon { color: var(--amber); }
+.scan-part-row[data-status="cancelled"] .scan-part-icon,
+.scan-part-row[data-status="not_supported"] .scan-part-icon,
+.scan-part-row[data-status="no_data"] .scan-part-icon { color: var(--text-mute); }
+.scan-part-row[data-status="error"] .scan-part-icon { color: var(--red); }
+
+.scan-part-row[data-status="scanning"] .scan-part-icon {
+    color: var(--accent);
+    animation: inst-breathe 1.1s var(--ease-out) infinite;
+}
+
+.scan-part-row:nth-child(2) { animation-delay: 30ms; }
+.scan-part-row:nth-child(3) { animation-delay: 60ms; }
+.scan-part-row:nth-child(4) { animation-delay: 90ms; }
+.scan-part-row:nth-child(5) { animation-delay: 120ms; }
+.scan-part-row:nth-child(6) { animation-delay: 150ms; }
+.scan-part-row:nth-child(7) { animation-delay: 180ms; }
+.scan-part-row:nth-child(8) { animation-delay: 210ms; }
+.scan-part-row:nth-child(9) { animation-delay: 240ms; }
+
+/* The step being scanned right now gets a travelling scanline. */
+.scan-part-row[data-status="scanning"] {
+    position: relative;
+    overflow: hidden;
+}
+
+.scan-part-row[data-status="scanning"]::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    animation: inst-scanline 1.6s linear infinite;
+}
+
+/* -------------------------------------------------------- status pills */
+.status-pill,
+.quality-pill,
+.health-status-badge,
+.live-pill {
+    transition:
+        background-color var(--t-base) var(--ease-out),
+        color var(--t-base) var(--ease-out),
+        border-color var(--t-base) var(--ease-out);
+}
+
+.quality-pill.is-online::before,
+.quality-pill.is-offline::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 7px;
+    vertical-align: 1px;
+}
+
+.quality-pill.is-online::before {
+    background: var(--green);
+    box-shadow: 0 0 0 3px var(--green-soft);
+}
+
+.quality-pill.is-offline::before {
+    background: var(--led-off);
+}
+
+.health-score-row strong {
+    font-family: var(--mono);
+    font-size: 2.1em;
+    letter-spacing: -0.03em;
+}
+
+/* --------------------------------------------------- dialogs and overlays */
+.setup-modal,
+.confirm-dialog,
+.changelog-dialog {
+    animation: inst-fade var(--t-base) var(--ease-out);
+    backdrop-filter: blur(6px) saturate(115%);
+    -webkit-backdrop-filter: blur(6px) saturate(115%);
+}
+
+.setup-card,
+.confirm-dialog > *,
+.changelog-dialog > * {
+    animation: inst-pop var(--t-base) var(--ease-spring) both;
+}
+
+.update-notification {
+    animation: inst-rise var(--t-slow) var(--ease-spring) both;
+}
+
+#startup-overlay,
+.startup-overlay {
+    animation: inst-fade var(--t-base) var(--ease-out);
+}
+
+.startup-overlay .startup-spinner,
+.spinner {
+    animation: inst-spin .9s linear infinite;
+}
+
+/* ------------------------------------------------------- car journal photo */
+.garage-note-photo {
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: var(--r-inner);
+    display: inline-flex;
+    gap: 10px;
+    margin-top: 10px;
+    overflow: hidden;
+    padding: 6px 12px 6px 6px;
+    text-decoration: none;
+    transition: border-color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
+}
+
+.garage-note-photo:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.garage-note-photo img {
+    border-radius: 9px;
+    display: block;
+    height: 46px;
+    object-fit: cover;
+    width: 46px;
+}
+
+.garage-note-photo span {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .04em;
+}
+
+/* ------------------------------------------------------------- lock page */
+.lock-page {
+    align-items: center;
+    background:
+        radial-gradient(120% 90% at 50% -20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 62%),
+        var(--bg);
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    overflow: auto;
+}
+
+.lock-shell {
+    padding: 32px 20px;
+    width: 100%;
+    max-width: 460px;
+}
+
+.lock-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-hero);
+    box-shadow: var(--shadow-lg), var(--shadow-inset);
+    padding: 34px 30px 28px;
+    text-align: center;
+    animation: inst-pop var(--t-slow) var(--ease-spring) both;
+}
+
+.lock-mark {
+    display: grid;
+    height: 74px;
+    margin: 0 auto 18px;
+    place-items: center;
+    position: relative;
+    width: 74px;
+}
+
+.lock-mark-ring {
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: inst-spin 3.4s linear infinite;
+}
+
+.lock-mark-text {
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: .06em;
+}
+
+.lock-card h1 {
+    font-size: 25px;
+    margin: 6px 0 10px;
+}
+
+.lock-copy {
+    color: var(--text-dim);
+    margin: 0 0 22px;
+}
+
+.lock-form {
+    display: grid;
+    gap: 12px;
+    text-align: left;
+}
+
+.lock-label {
+    color: var(--text-dim);
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+
+.lock-input {
+    background: var(--well);
+    border: 1px solid var(--line);
+    border-radius: var(--r-btn);
+    font-family: var(--mono);
+    font-size: 22px;
+    letter-spacing: .5em;
+    padding: 13px 16px;
+    text-align: center;
+    transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
+    width: 100%;
+}
+
+.lock-input:focus {
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+    outline: none;
+}
+
+.lock-submit {
+    background: var(--accent);
+    border: 0;
+    border-radius: var(--r-btn);
+    color: var(--on-accent);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    padding: 13px 16px;
+    transition: background-color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
+}
+
+.lock-submit:hover:not(:disabled) {
+    background: var(--accent-deep);
+    box-shadow: var(--shadow);
+    transform: translateY(-1.5px);
+}
+
+.lock-submit:active:not(:disabled) {
+    transform: translateY(1px) scale(.99);
+}
+
+.lock-submit:disabled {
+    cursor: progress;
+    opacity: .7;
+}
+
+.lock-result {
+    font-size: 13px;
+    margin: 2px 0 0;
+    min-height: 1.3em;
+}
+
+.lock-result.is-error { color: var(--red); }
+.lock-result.is-ok { color: var(--green); }
+.lock-result.is-busy { color: var(--text-dim); }
+
+.lock-foot {
+    border-top: 1px solid var(--line-soft);
+    color: var(--text-mute);
+    font-size: 11.5px;
+    margin: 24px 0 0;
+    padding-top: 16px;
+}
+
+.lock-foot code {
+    background: var(--surface-2);
+    border-radius: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 5px;
+}
+
+/* ----------------------------------------------------- odometer / extended */
+.extended-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.extended-card {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--r-inner);
+    padding: 14px 16px;
+    transition: transform var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
+}
+
+.extended-card:hover {
+    border-color: var(--line-strong);
+    transform: translateY(-2px);
+}
+
+.extended-card span {
+    color: var(--text-dim);
+    display: block;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+}
+
+.extended-card strong {
+    display: block;
+    font-family: var(--mono);
+    font-size: 21px;
+    font-variant-numeric: tabular-nums;
+    margin-top: 6px;
+}
+
+.extended-card small {
+    color: var(--text-mute);
+    display: block;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+.extended-card.is-unsupported strong {
+    color: var(--text-mute);
+    font-size: 15px;
+}
+
+/* The odometer is the one number people read off a scan tool first, so it
+   gets the dark-readout treatment. */
+.extended-card.is-odometer strong {
+    background: var(--readout-bg);
+    border-radius: 8px;
+    color: var(--readout-ink);
+    display: inline-block;
+    letter-spacing: .04em;
+    padding: 6px 12px;
+    text-shadow: 0 0 14px color-mix(in srgb, var(--readout-ink) 55%, transparent);
+}
+
+/* --------------------------------------------------------------- loading */
+.is-loading,
+.skeleton {
+    background-image: linear-gradient(90deg, var(--surface-2) 0%, var(--hover) 50%, var(--surface-2) 100%);
+    background-size: 340px 100%;
+    background-repeat: no-repeat;
+    animation: inst-shimmer 1.2s linear infinite;
+    border-radius: var(--r-chip);
+    color: transparent !important;
+}
+
+/* ------------------------------------------------------------- scrollbars */
+::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border: 3px solid var(--bg);
+    transition: background-color var(--t-fast) var(--ease-out);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+/* ------------------------------------------------------------ small screens */
+@media (max-width: 900px) {
+    .tablet-bezel { border-radius: 0; }
+    .panel:hover,
+    .quick-metric:hover,
+    .metric-panel:hover { transform: none; }
+    .stream-indicator .stream-label { display: none; }
+}
+
+/* ---------------------------------------------------------- accessibility */
+/* Everything above is finish, not function: with reduced motion requested,
+   the dashboard must still read exactly the same, just without the movement. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .brand-icon::after,
+    .scan-parts-list [data-status="scanning"]::after,
+    .scan-progress-bar-fill::after {
+        display: none;
+    }
+}
+
+/* ----------------------------------------------------------------- print */
+@media print {
+    .tablet-sidebar,
+    .topbar-actions,
+    .stream-indicator,
+    .update-notification,
+    .setup-modal { display: none !important; }
+
+    .tablet-bezel,
+    .panel {
+        box-shadow: none !important;
+        border-color: #ccd6e2 !important;
+    }
+
+    body { background: #fff !important; }
 }

@@ -1,8 +1,9 @@
-# Made by Boszhard Development
 try:
     from obd.codes import DTC as PYTHON_OBD_DTC
 except Exception:
     PYTHON_OBD_DTC = {}
+
+from scanner_core.errorcode import EXTRA_GENERIC_CODES, get_manufacturer_codes
 
 
 GENERIC_SYSTEMS = {
@@ -137,6 +138,7 @@ DTC_INFO = {
     "P0601": ("ECU memory checksum fault", "ECU", "high", ["internal ECU fault", "software", "power supply"]),
     "P0606": ("ECU processor fault", "ECU", "high", ["internal ECU fault", "power/ground", "software"]),
     "P0700": ("Transmission control system fault", "Transmission", "medium", ["TCM has stored codes", "scan transmission module with enhanced scanner"]),
+    **EXTRA_GENERIC_CODES,
 }
 
 
@@ -150,9 +152,22 @@ def severity_action(severity):
     return "Review this code with live data and a manual inspection."
 
 
+def _active_vehicle_brand():
+    try:
+        from scanner_core.vehicle_services import get_active_vehicle
+        vehicle = get_active_vehicle()
+        return vehicle.get("brand") if vehicle else None
+    except Exception:
+        return None
+
+
 def explain_dtc(code, original_description=""):
     normalized = (code or "").upper().strip()
     info = DTC_INFO.get(normalized)
+
+    if not info:
+        brand_codes = get_manufacturer_codes(_active_vehicle_brand())
+        info = brand_codes.get(normalized)
 
     if info:
         description, system, severity, causes = info

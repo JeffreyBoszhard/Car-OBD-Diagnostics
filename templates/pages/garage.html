@@ -1,24 +1,193 @@
-﻿<!-- Made by Boszhard Development -->
 <section class="page-screen page-garage scanner-garage-page" data-page="garage">
-    <div class="garage-layout scanner-garage-layout">
-        <article class="panel garage-note-panel scanner-garage-form-panel">
-            <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.eyebrow }}</p><h2>{{ i18n.garage.title }}</h2></div></div>
-            <p class="panel-copy">{{ i18n.garage["copy"] }}</p>
-            <div id="garage-active-vehicle" class="garage-active-vehicle"><span>{{ i18n.garage.active_vehicle }}</span><strong>--</strong></div>
-            <form id="garage-note-form" class="garage-note-form scanner-garage-form">
-                <div class="garage-identity-fields"><div><label for="garage-note-vin">{{ i18n.garage.vin_label }}</label><input id="garage-note-vin" name="vin" type="text" maxlength="17" placeholder="{{ i18n.garage.vin_placeholder }}" autocomplete="off" spellcheck="false"></div><div><label for="garage-note-plate">{{ i18n.garage.plate_label }}</label><input id="garage-note-plate" name="plate" type="text" maxlength="12" placeholder="{{ i18n.garage.plate_placeholder }}" autocomplete="off" spellcheck="false"></div></div>
-                <label for="garage-note-title">{{ i18n.garage.title_label }}</label><input id="garage-note-title" name="title" type="text" maxlength="80" placeholder="{{ i18n.garage.title_placeholder }}">
-                <label for="garage-note-mileage">{{ i18n.garage.mileage_label }}</label><input id="garage-note-mileage" name="mileage" type="text" maxlength="40" placeholder="{{ i18n.garage.mileage_placeholder }}">
-                <label for="garage-note-text">{{ i18n.garage.note_label }}</label><textarea id="garage-note-text" name="note" rows="7" required placeholder="{{ i18n.garage.note_placeholder }}"></textarea>
-                <div class="garage-photo-row"><div><label for="garage-note-photo">Photo attachment</label><input id="garage-note-photo" name="photo" type="file" accept="image/*"></div><p class="panel-note">Photos are saved as base64 in the note snapshot payload.</p></div>
-                <div class="garage-form-actions"><button id="garage-note-submit" class="secondary-action primary-cta" type="submit">{{ i18n.garage.save }}</button><button id="garage-note-cancel-edit" class="secondary-action" type="button" hidden>{{ i18n.garage.cancel_edit }}</button></div>
+    <div class="garage-page-stack">
+        <article class="panel garage-vehicles-panel">
+            <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.vehicles_eyebrow }}</p><h2>{{ i18n.garage.vehicles_title }}</h2></div></div>
+            <p class="panel-copy">{{ i18n.garage.vehicles_copy }}</p>
+            <form id="vehicle-form" class="garage-vehicles-form">
+                <div><label for="vehicle-nickname">{{ i18n.garage.vehicle_nickname_label }}</label><input id="vehicle-nickname" name="nickname" type="text" maxlength="120" required placeholder="{{ i18n.garage.vehicle_nickname_placeholder }}"></div>
+                <div><label for="vehicle-plate">{{ i18n.garage.plate_label }}</label><input id="vehicle-plate" name="plate" type="text" maxlength="12" required placeholder="{{ i18n.garage.plate_placeholder }}" autocomplete="off" spellcheck="false"></div>
+                <div><label for="vehicle-vin">{{ i18n.garage.vin_label }} <span class="field-optional-tag">{{ i18n.common.optional }}</span></label><input id="vehicle-vin" name="vin" type="text" maxlength="17" placeholder="{{ i18n.garage.vin_placeholder }}" autocomplete="off" spellcheck="false"></div>
+                <div><label for="vehicle-brand">{{ i18n.garage.vehicle_brand_label }}</label><input id="vehicle-brand" name="brand" type="text" maxlength="80" placeholder="{{ i18n.garage.vehicle_brand_placeholder }}"></div>
+                <div><label for="vehicle-model">{{ i18n.garage.vehicle_model_label }}</label><input id="vehicle-model" name="model" type="text" maxlength="80" placeholder="{{ i18n.garage.vehicle_model_placeholder }}"></div>
+                <div>
+                    <label id="vehicle-year-label">{{ i18n.garage.vehicle_year_label }}</label>
+                    <div class="year-stepper" id="vehicle-year-stepper">
+                        <button type="button" class="year-stepper-button" data-year-step="-1" aria-label="-1">&#8722;</button>
+                        <input id="vehicle-year" name="year" type="text" inputmode="numeric" maxlength="4" placeholder="{{ i18n.garage.vehicle_year_placeholder }}" autocomplete="off">
+                        <button type="button" class="year-stepper-button" data-year-step="1" aria-label="+1">&#43;</button>
+                    </div>
+                </div>
+                <div>
+                    <label for="vehicle-tank">{{ i18n.garage.vehicle_tank_label }}</label>
+                    <div class="unit-suffix-field"><input id="vehicle-tank" name="tank" type="number" min="0" step="0.1" placeholder="{{ i18n.garage.vehicle_tank_placeholder }}"><span id="vehicle-tank-unit" class="unit-suffix-badge">L</span></div>
+                </div>
+                <button id="vehicle-submit" class="secondary-action primary-cta" type="submit">{{ i18n.garage.vehicle_add }}</button>
             </form>
-            <p id="garage-note-result" class="panel-note">{{ i18n.garage.result }}</p>
+            <p id="vehicle-result" class="panel-note">{{ i18n.garage.vehicle_result }}</p>
+            <div id="vehicle-list" class="garage-vehicle-chip-list"></div>
         </article>
-        <article class="panel garage-history-panel scanner-garage-history-panel">
-            <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.history_eyebrow }}</p><h2>{{ i18n.garage.history_title }}</h2></div></div>
-            <div class="garage-filter-bar scanner-filter-bar"><input id="garage-filter-search" type="search" maxlength="80" placeholder="{{ i18n.garage.filter_search }}" autocomplete="off" spellcheck="false"><button id="garage-clear-filter-button" class="secondary-action" type="button">{{ i18n.garage.clear_filter }}</button><button id="garage-export-button" class="secondary-action" type="button">{{ i18n.garage.export_html }}</button></div>
-            <div id="garage-notes-list" class="history-list"></div>
-        </article>
+
+        <div class="garage-section-grid">
+            <article class="panel garage-note-panel scanner-garage-form-panel">
+                <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.eyebrow }}</p><h2>{{ i18n.garage.title }}</h2></div></div>
+                <p class="panel-copy">{{ i18n.garage["copy"] }}</p>
+                <p id="maintenance-reminder-banner" class="panel-note" hidden></p>
+                <form id="garage-note-form" class="garage-note-form scanner-garage-form">
+                    <label id="garage-note-vehicle-label">{{ i18n.garage.vehicle_picker_label }}</label>
+                    <div class="vehicle-picker" id="garage-note-vehicle-picker">
+                        <button type="button" class="vehicle-picker-trigger" data-vehicle-picker-trigger aria-haspopup="listbox" aria-expanded="false">
+                            <span class="vehicle-picker-trigger-text is-placeholder" data-vehicle-picker-trigger-text>{{ i18n.garage.vehicle_picker_placeholder }}</span>
+                            <span class="vehicle-picker-trigger-icon" aria-hidden="true">&#9662;</span>
+                        </button>
+                        <input type="hidden" name="vehicle_id" data-vehicle-picker-value>
+                        <div class="vehicle-picker-panel" data-vehicle-picker-panel hidden>
+                            <input type="search" class="vehicle-picker-search" data-vehicle-picker-search autocomplete="off" spellcheck="false" placeholder="{{ i18n.garage.vehicle_picker_search_placeholder }}">
+                            <div class="vehicle-picker-options" data-vehicle-picker-options></div>
+                            <button type="button" class="vehicle-picker-clear" data-vehicle-picker-clear>{{ i18n.garage.vehicle_picker_clear }}</button>
+                        </div>
+                    </div>
+                    <p id="garage-note-vehicle-note" class="panel-note field-inline-note" hidden>{{ i18n.garage.vehicle_selected_note }}</p>
+                    <div class="garage-identity-fields">
+                        <div><label for="garage-note-plate">{{ i18n.garage.plate_label }}</label><input id="garage-note-plate" name="plate" type="text" maxlength="12" required placeholder="{{ i18n.garage.plate_placeholder }}" autocomplete="off" spellcheck="false"></div>
+                        <div><label for="garage-note-vin">{{ i18n.garage.vin_label }} <span class="field-optional-tag">{{ i18n.common.optional }}</span></label><input id="garage-note-vin" name="vin" type="text" maxlength="17" placeholder="{{ i18n.garage.vin_placeholder }}" autocomplete="off" spellcheck="false"></div>
+                    </div>
+                    <label for="garage-note-title">{{ i18n.garage.title_label }}</label><input id="garage-note-title" name="title" type="text" maxlength="80" placeholder="{{ i18n.garage.title_placeholder }}">
+                    <label id="garage-note-mileage-label" for="garage-note-mileage">{{ i18n.garage.mileage_label }}</label><input id="garage-note-mileage" name="mileage" type="text" maxlength="40" placeholder="{{ i18n.garage.mileage_placeholder }}">
+                    <label for="garage-note-text">{{ i18n.garage.note_label }}</label><textarea id="garage-note-text" name="note" rows="7" required placeholder="{{ i18n.garage.note_placeholder }}"></textarea>
+                    <div class="garage-photo-row"><div><label for="garage-note-photo">Photo attachment</label><input id="garage-note-photo" name="photo" type="file" accept="image/*"></div><p class="panel-note">Photos are saved as base64 in the note snapshot payload.</p></div>
+                    <div class="garage-form-actions"><button id="garage-note-submit" class="secondary-action primary-cta" type="submit">{{ i18n.garage.save }}</button><button id="garage-note-cancel-edit" class="secondary-action" type="button" hidden>{{ i18n.garage.cancel_edit }}</button></div>
+                </form>
+                <p id="garage-note-result" class="panel-note">{{ i18n.garage.result }}</p>
+            </article>
+            <article class="panel garage-history-panel scanner-garage-history-panel">
+                <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.history_eyebrow }}</p><h2>{{ i18n.garage.history_title }}</h2></div></div>
+                <div class="garage-filter-bar scanner-filter-bar"><select id="garage-vehicle-filter" class="port-native-select"><option value="">{{ i18n.garage.vehicle_filter_all }}</option></select><input id="garage-filter-search" type="search" maxlength="80" placeholder="{{ i18n.garage.filter_search }}" autocomplete="off" spellcheck="false"><button id="garage-clear-filter-button" class="secondary-action" type="button">{{ i18n.garage.clear_filter }}</button><button id="garage-export-button" class="secondary-action" type="button">{{ i18n.garage.export_html }}</button></div>
+                <div id="garage-notes-list" class="history-list"></div>
+            </article>
+        </div>
+
+        <div class="garage-section-grid">
+            <article class="panel fuel-log-card">
+                <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.fuel_log_eyebrow }}</p><h2>{{ i18n.garage.fuel_log_title }}</h2></div></div>
+                <p class="panel-copy">{{ i18n.garage.fuel_log_copy }}</p>
+                <form id="fuel-log-form" class="fuel-log-form">
+                    <div class="fuel-log-vehicle-row">
+                        <label id="fuel-log-vehicle-label">{{ i18n.garage.vehicle_picker_label }}</label>
+                        <div class="vehicle-picker" id="fuel-log-vehicle-picker">
+                            <button type="button" class="vehicle-picker-trigger" data-vehicle-picker-trigger aria-haspopup="listbox" aria-expanded="false">
+                                <span class="vehicle-picker-trigger-text is-placeholder" data-vehicle-picker-trigger-text>{{ i18n.garage.vehicle_picker_placeholder }}</span>
+                                <span class="vehicle-picker-trigger-icon" aria-hidden="true">&#9662;</span>
+                            </button>
+                            <input type="hidden" name="vehicle_id" data-vehicle-picker-value>
+                            <div class="vehicle-picker-panel" data-vehicle-picker-panel hidden>
+                                <input type="search" class="vehicle-picker-search" data-vehicle-picker-search autocomplete="off" spellcheck="false" placeholder="{{ i18n.garage.vehicle_picker_search_placeholder }}">
+                                <div class="vehicle-picker-options" data-vehicle-picker-options></div>
+                                <button type="button" class="vehicle-picker-clear" data-vehicle-picker-clear>{{ i18n.garage.vehicle_picker_clear }}</button>
+                            </div>
+                        </div>
+                        <p id="fuel-log-tank-note" class="panel-note field-inline-note" hidden></p>
+                    </div>
+                    <div class="fuel-log-grid">
+                        <div class="fuel-log-field">
+                            <span id="fuel-log-mileage-badge" class="fuel-log-field-badge">KM</span>
+                            <div class="fuel-log-field-body">
+                                <label for="fuel-log-mileage" id="fuel-log-mileage-label">{{ i18n.garage.fuel_log_mileage_label }} <span class="field-hint" data-tooltip="{{ i18n.garage.fuel_log_odometer_hint }}" tabindex="0">&#9432;</span></label>
+                                <input id="fuel-log-mileage" name="mileage" type="number" min="0" step="0.1" required placeholder="{{ i18n.garage.fuel_log_mileage_placeholder }}">
+                            </div>
+                        </div>
+                        <div class="fuel-log-field">
+                            <span id="fuel-log-liters-badge" class="fuel-log-field-badge">L</span>
+                            <div class="fuel-log-field-body">
+                                <label for="fuel-log-liters" id="fuel-log-liters-label">{{ i18n.garage.fuel_log_liters_label }} <span class="field-hint" data-tooltip="{{ i18n.garage.fuel_log_liters_hint }}" tabindex="0">&#9432;</span></label>
+                                <input id="fuel-log-liters" name="liters" type="number" min="0" step="0.01" required placeholder="{{ i18n.garage.fuel_log_liters_placeholder }}">
+                            </div>
+                        </div>
+                        <div class="fuel-log-field">
+                            <span class="fuel-log-field-badge">&euro;</span>
+                            <div class="fuel-log-field-body">
+                                <label for="fuel-log-cost">{{ i18n.garage.fuel_log_cost_label }} <span class="field-hint" data-tooltip="{{ i18n.garage.fuel_log_cost_hint }}" tabindex="0">&#9432;</span></label>
+                                <input id="fuel-log-cost" name="cost" type="number" min="0" step="0.01" placeholder="{{ i18n.garage.fuel_log_cost_placeholder }}">
+                            </div>
+                        </div>
+                        <div class="fuel-log-field fuel-log-field-wide">
+                            <span class="fuel-log-field-badge">&#9998;</span>
+                            <div class="fuel-log-field-body">
+                                <label for="fuel-log-notes">{{ i18n.garage.fuel_log_notes_label }}</label>
+                                <input id="fuel-log-notes" name="notes" type="text" maxlength="120" placeholder="{{ i18n.garage.fuel_log_notes_placeholder }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fuel-log-form-actions"><button id="fuel-log-submit" class="secondary-action primary-cta" type="submit">{{ i18n.garage.fuel_log_save }}</button></div>
+                </form>
+                <p id="fuel-log-result" class="panel-note">{{ i18n.garage.fuel_log_result }}</p>
+            </article>
+            <article class="panel garage-history-panel scanner-garage-history-panel">
+                <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.fuel_log_history_eyebrow }}</p><h2>{{ i18n.garage.fuel_log_history_title }}</h2></div></div>
+                <div class="garage-filter-bar scanner-filter-bar"><select id="fuel-log-vehicle-filter" class="port-native-select"><option value="">{{ i18n.garage.vehicle_filter_all }}</option></select></div>
+                <div class="graph-card"><span>{{ i18n.garage.fuel_log_trend_title }}</span><canvas id="fuel-log-chart" width="560" height="160"></canvas></div>
+                <div id="fuel-log-list" class="history-list"></div>
+            </article>
+        </div>
+
+        <div class="garage-section-grid">
+            <article class="panel trip-log-card">
+                <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.trip_log_eyebrow }}</p><h2>{{ i18n.garage.trip_log_title }}</h2></div></div>
+                <p class="panel-copy">{{ i18n.garage.trip_log_copy }}</p>
+                <form id="trip-log-form" class="fuel-log-form">
+                    <div class="fuel-log-vehicle-row">
+                        <label id="trip-log-vehicle-label">{{ i18n.garage.vehicle_picker_label }}</label>
+                        <div class="vehicle-picker" id="trip-log-vehicle-picker">
+                            <button type="button" class="vehicle-picker-trigger" data-vehicle-picker-trigger aria-haspopup="listbox" aria-expanded="false">
+                                <span class="vehicle-picker-trigger-text is-placeholder" data-vehicle-picker-trigger-text>{{ i18n.garage.vehicle_picker_placeholder }}</span>
+                                <span class="vehicle-picker-trigger-icon" aria-hidden="true">&#9662;</span>
+                            </button>
+                            <input type="hidden" name="vehicle_id" data-vehicle-picker-value>
+                            <div class="vehicle-picker-panel" data-vehicle-picker-panel hidden>
+                                <input type="search" class="vehicle-picker-search" data-vehicle-picker-search autocomplete="off" spellcheck="false" placeholder="{{ i18n.garage.vehicle_picker_search_placeholder }}">
+                                <div class="vehicle-picker-options" data-vehicle-picker-options></div>
+                                <button type="button" class="vehicle-picker-clear" data-vehicle-picker-clear>{{ i18n.garage.vehicle_picker_clear }}</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fuel-log-grid">
+                        <div class="fuel-log-field">
+                            <span id="trip-log-start-badge" class="fuel-log-field-badge">KM</span>
+                            <div class="fuel-log-field-body">
+                                <label for="trip-log-start" id="trip-log-start-label">{{ i18n.garage.trip_log_start_label }}</label>
+                                <input id="trip-log-start" name="start_mileage" type="number" min="0" step="0.1" required placeholder="{{ i18n.garage.trip_log_start_placeholder }}">
+                            </div>
+                        </div>
+                        <div class="fuel-log-field">
+                            <span id="trip-log-end-badge" class="fuel-log-field-badge">KM</span>
+                            <div class="fuel-log-field-body">
+                                <label for="trip-log-end" id="trip-log-end-label">{{ i18n.garage.trip_log_end_label }}</label>
+                                <input id="trip-log-end" name="end_mileage" type="number" min="0" step="0.1" required placeholder="{{ i18n.garage.trip_log_end_placeholder }}">
+                            </div>
+                        </div>
+                        <div class="fuel-log-field">
+                            <span class="fuel-log-field-badge">&#9998;</span>
+                            <div class="fuel-log-field-body">
+                                <label for="trip-log-purpose">{{ i18n.garage.trip_log_purpose_label }}</label>
+                                <input id="trip-log-purpose" name="purpose" type="text" maxlength="80" placeholder="{{ i18n.garage.trip_log_purpose_placeholder }}">
+                            </div>
+                        </div>
+                        <div class="fuel-log-field fuel-log-field-wide">
+                            <span class="fuel-log-field-badge">&#9998;</span>
+                            <div class="fuel-log-field-body">
+                                <label for="trip-log-notes">{{ i18n.garage.trip_log_notes_label }}</label>
+                                <input id="trip-log-notes" name="notes" type="text" maxlength="120" placeholder="{{ i18n.garage.trip_log_notes_placeholder }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fuel-log-form-actions"><button id="trip-log-submit" class="secondary-action primary-cta" type="submit">{{ i18n.garage.trip_log_save }}</button></div>
+                </form>
+                <p id="trip-log-result" class="panel-note">{{ i18n.garage.trip_log_result }}</p>
+            </article>
+            <article class="panel garage-history-panel scanner-garage-history-panel">
+                <div class="panel-heading"><div><p class="eyebrow">{{ i18n.garage.trip_log_history_eyebrow }}</p><h2>{{ i18n.garage.trip_log_history_title }}</h2></div></div>
+                <div class="garage-filter-bar scanner-filter-bar"><select id="trip-log-vehicle-filter" class="port-native-select"><option value="">{{ i18n.garage.vehicle_filter_all }}</option></select></div>
+                <div id="trip-log-list" class="history-list"></div>
+            </article>
+        </div>
     </div>
 </section>

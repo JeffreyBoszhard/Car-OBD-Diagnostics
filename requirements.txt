@@ -1,4 +1,9 @@
-# Made by Boszhard Development
-flask
-obd
-pyserial
+# Car OBD Diagnostics - runtime dependencies
+#
+# Versions are pinned to a known-good lower bound rather than left open:
+# python-obd is still pre-1.0 and its API can change between minor releases,
+# which is exactly the kind of surprise a workshop tool should not have.
+
+Flask>=3.0,<4.0
+obd>=0.7.2,<0.8
+pyserial>=3.5,<4.0
