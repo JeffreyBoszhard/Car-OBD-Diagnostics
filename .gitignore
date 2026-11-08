@@ -11,6 +11,9 @@ scanner_config.db
 *.db
 *.sqlite
 *.sqlite3
+# SQLite WAL sidecar files
+*.db-wal
+*.db-shm
 dashboard_runtime.json
 dashboard_setup.json
 

@@ -375,29 +375,78 @@ function setLiveMetricText(id, nextText) {
     element.textContent = nextText;
 }
 
+// The dial numbers ring the scale marks from the outside, and where they
+// belong follows from the dial's own geometry rather than from a fixed
+// pixel radius:
+//
+//   .tach-face::before  inset 7%, ring masked to 73-88% of its radius
+//                       -> the scale marks end at 0.378 of the face
+//                          diameter from the centre
+//
+// A number is placed so its inner edge clears that, which also keeps the
+// bottom numbers off the centre readout. The old code used a fixed 146px:
+// correct at exactly one dial size, and pushed onto - or over - the rim at
+// every smaller one, which is what made the scale look crooked.
+const TICK_RING_OUTER_RATIO = 0.378;
+const TICK_LABEL_GAP = 4;
+
 function positionGaugeTicks() {
     const gauges = [
-        { selector: ".tach-face", gauge: "rpm", radius: 146, xOffset: 0, yOffset: 0 },
-        { selector: ".speed-face", gauge: "speed", radius: 146, xOffset: 0, yOffset: 1 }
+        { selector: ".tach-face", gauge: "rpm" },
+        { selector: ".speed-face", gauge: "speed" }
     ];
 
-    gauges.forEach(({ selector, gauge, radius, xOffset, yOffset }) => {
+    gauges.forEach(({ selector, gauge }) => {
         const face = document.querySelector(selector);
         if (!face) return;
 
         const faceRect = face.getBoundingClientRect();
+        const size = Math.min(faceRect.width, faceRect.height);
+        if (!size) return;
+
         const centerX = faceRect.width / 2;
         const centerY = faceRect.height / 2;
 
         face.querySelectorAll(`.tick[data-gauge="${gauge}"]`).forEach((tick) => {
             const angle = Number(tick.dataset.angle || 0) * (Math.PI / 180);
-            const x = centerX + Math.cos(angle) * radius + xOffset;
-            const y = centerY + Math.sin(angle) * radius + yOffset;
-            tick.style.left = `${x}px`;
-            tick.style.top = `${y}px`;
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+
+            // How far the label box reaches along its own radius. A number
+            // is wider than it is tall, so one at the side of the dial needs
+            // more clearance than one at the top - using half the height for
+            // both is what let the side numbers hang over the rim.
+            const reach = Math.abs(cos) * ((tick.offsetWidth || 40) / 2)
+                + Math.abs(sin) * ((tick.offsetHeight || 20) / 2);
+
+            const radius = Math.min(
+                size * TICK_RING_OUTER_RATIO + reach + TICK_LABEL_GAP,
+                size * 0.5 - reach - 3
+            );
+
+            tick.style.left = `${centerX + cos * radius}px`;
+            tick.style.top = `${centerY + sin * radius}px`;
             tick.style.transform = "translate(-50%, -50%)";
         });
     });
+}
+
+// The dial is fluid, so the numbers have to be re-placed whenever its size
+// changes - a window resize, the sidebar collapsing, or the panel reflowing.
+let gaugeResizeObserved = false;
+
+function observeGaugeResize() {
+    // Attach once: this runs on every page switch, and a fresh observer per
+    // call would pile up watchers on the same two elements.
+    if (gaugeResizeObserved) return;
+    gaugeResizeObserved = true;
+
+    if (!("ResizeObserver" in window)) {
+        window.addEventListener("resize", positionGaugeTicks);
+        return;
+    }
+    const observer = new ResizeObserver(() => positionGaugeTicks());
+    document.querySelectorAll(".tach-face, .speed-face").forEach((face) => observer.observe(face));
 }
 
 function sanitizeKey(value) {
@@ -524,6 +573,7 @@ function updateShellMode() {
 }
 
 function refreshGaugeLayout() {
+    observeGaugeResize();
     window.requestAnimationFrame(() => {
         positionGaugeTicks();
         window.requestAnimationFrame(positionGaugeTicks);
@@ -4928,6 +4978,54 @@ async function refreshExtendedData() {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Navigation rail
+// ---------------------------------------------------------------------------
+// The rail collapses to an icon strip, which is what you want on a tablet
+// propped on a wing. The choice is remembered per browser; a failure to read
+// or write that is not worth breaking the page over, so it is swallowed.
+const RAIL_COLLAPSED_KEY = "obd_rail_collapsed";
+
+function applyRailCollapsed(collapsed) {
+    const rail = byId("scanner-rail");
+    const toggle = byId("rail-toggle");
+    if (!rail) return;
+
+    rail.classList.toggle("is-collapsed", collapsed);
+    if (toggle) toggle.setAttribute("aria-expanded", String(!collapsed));
+
+    // The dial numbers are placed from the measured dial size, so they have
+    // to be re-placed once the rail has finished changing width.
+    window.setTimeout(positionGaugeTicks, 60);
+    window.setTimeout(positionGaugeTicks, 320);
+}
+
+function initNavigationRail() {
+    const rail = byId("scanner-rail");
+    const toggle = byId("rail-toggle");
+    if (!rail) return;
+
+    let collapsed = false;
+    try {
+        collapsed = window.localStorage.getItem(RAIL_COLLAPSED_KEY) === "1";
+    } catch (error) {
+        collapsed = false;
+    }
+    applyRailCollapsed(collapsed);
+
+    if (!toggle) return;
+    toggle.addEventListener("click", () => {
+        collapsed = !rail.classList.contains("is-collapsed");
+        applyRailCollapsed(collapsed);
+        try {
+            window.localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? "1" : "0");
+        } catch (error) {
+            /* a browser with storage disabled simply does not remember it */
+        }
+    });
+}
+
 function on(id, eventName, handler) {
     const element = byId(id);
     if (element) {
@@ -5020,6 +5118,7 @@ initUnitsSwitcher();
 initThemeSwitcher();
 initPortDropdown();
 initNavigation();
+initNavigationRail();
 initDashboardLauncher();
 initPageFromHash();
 updateFreezeUi();
