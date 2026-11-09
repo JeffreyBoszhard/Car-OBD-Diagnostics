@@ -4,7 +4,7 @@ A Python and Flask based OBD-II workshop scanner dashboard for reading live ECU 
 
 The dashboard is built to look and work like a professional diagnostic scan tool: an instrument housing, modules per scanner function, mono readouts for live values, real status LEDs, and smooth animations that follow a Light/Dark/Auto theme. All data stays on your own machine in a single local `.db` file.
 
-Current version: `v0.8.0`
+Current version: `v0.8.1`
 
 ## Features
 
@@ -164,7 +164,7 @@ Pair the adapter at the operating-system level first. On Windows and macOS it th
 `config.py` holds the version, polling intervals, connection timeouts, cache lifetimes, upload limits and the update-check URLs. Every interval is in seconds.
 
 ```python
-APP_VERSION = "v0.8.0"
+APP_VERSION = "v0.8.1"
 
 POLL_INTERVAL = 0.1        # main live-data loop
 RPM_POLL_INTERVAL = 0.05   # fast gauge loop

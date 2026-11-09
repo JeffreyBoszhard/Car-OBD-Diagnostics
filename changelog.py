@@ -4,6 +4,38 @@ User note: do not remove this file. The scanner reads these entries to show the 
 """
 CHANGELOG = [
     {
+        "version": "v0.8.1",
+        "date": "2026-11-09",
+        "changes": [
+            "Fits Every Screen",
+            "The dashboard now sizes itself to the screen it is on. Everything structural - the navigation rail, the top bar, panel padding, text sizes, the gauges - scales with the viewport between a sensible minimum and maximum, instead of taking the same physical space on a 13\" laptop as on a 27\" monitor.",
+            "The gauges are bounded by screen height as well as width, because on a short laptop screen it was the dials that pushed everything else below the fold.",
+            "Dial numbers and the centre readout scale with the dial, so a smaller gauge is genuinely smaller instead of just more crowded.",
+            "On short screens the rail gives space back where it costs least: module descriptions fold away first, then the status readouts, before anything shrinks further.",
+            "On very wide monitors the content now centres with a maximum width, so a sentence is no longer stretched across the whole screen.",
+            "Light Mode By Default",
+            "The scanner now opens in light mode instead of following the operating system. This is a tool used in daylight and under shop lighting as often as on a dim screen, and it is easier to trust a tool that always opens the same way. Dark and Auto are still one click away on the System page.",
+            "Better Dark Mode",
+            "Dark mode was almost black; it is now a blue-slate panel that reads as a lit instrument rather than holes punched in a dark screen.",
+            "Panels step up in real brightness instead of being separated only by hairlines, and the signal colours are pulled back from neon so long sessions stay comfortable.",
+            "Colour Consistency",
+            "Found and fixed a large set of colours that only adapted halfway between themes: a panel could have a correct dark background with a pale pink border left over from the light theme. Every signal colour now derives from the theme.",
+            "Checked the contrast of every text and colour pairing in both themes against the accessibility targets, and fixed the four that fell short - amber text was hard to read on white, and white on the blue button was a hair under the limit.",
+            "Gauge Fixes",
+            "Fixed the needles pointing at the wrong place: a stationary car showed the needle at mid-scale instead of zero.",
+            "Fixed a red box being drawn over the highest number on each dial.",
+            "Fixed the dial numbers drifting onto, and past, the rim of the gauge at any size other than the one they were originally tuned for.",
+            "Redesigned Navigation Rail",
+            "The sidebar is now one continuous instrument column instead of three separate floating cards, with the modules grouped by what you are doing - Overview, Diagnose, Vehicle, Records, Setup - rather than one long list.",
+            "The connection status is pinned to the bottom with a real status LED, and protocol and last update shown side by side.",
+            "The rail collapses to an icon strip with hover labels, and remembers the choice.",
+            "Fixed the connection indicator being stuck on red: an old style rule prevented it from ever turning green.",
+            "Cleanup",
+            "Removed leftover code for the old Limited Mode, which still called an endpoint that no longer exists, and for the removed SAFE mode button.",
+            "Exported graph recordings now use the same colours as the app.",
+        ],
+    },
+    {
         "version": "v0.8.0",
         "date": "2026-11-08",
         "changes": [
