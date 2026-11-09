@@ -80,7 +80,11 @@ UNIT_OPTIONS = [
 ]
 SUPPORTED_UNIT_CODES = {item["code"] for item in UNIT_OPTIONS}
 
-DEFAULT_THEME = "auto"
+# Light is the default: this is a workshop tool used in daylight and under
+# bright shop lighting as often as on a dim screen, and a tool that always
+# opens the same way is easier to trust than one that changes with the host
+# OS. Dark and Auto stay one click away on the System page.
+DEFAULT_THEME = "light"
 THEME_OPTIONS = [
     {"code": "light", "label": "Light", "name": "Light"},
     {"code": "dark", "label": "Dark", "name": "Dark"},

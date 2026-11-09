@@ -59,7 +59,6 @@ let lastRenderedPortSignature = "";
 let demoMode = false;
 let demoPreset = "idle";
 let demoPresetRequestPending = false;
-let limitedMode = false;
 let pollProfile = "balanced";
 let simpleMode = false;
 let garageSearchTimer = null;
@@ -651,13 +650,11 @@ async function fetchStatusOnly(shouldHydrateFullData = false) {
 
     isConnected = Boolean(payload.connected);
     demoMode = Boolean(payload.demo_mode);
-    limitedMode = Boolean(payload.limited_mode);
     pollProfile = String(payload.poll_profile?.id || pollProfile);
 
     updateStatus(payload, sessionState);
     updateConnectionQuality(payload.connection_quality || {});
     updateServiceModeUi();
-    updateLimitedModeUi();
     updatePollProfileUi(payload.poll_profile || { id: pollProfile });
     updateErrorLog(payload.recent_errors || []);
     updateDemoModeUi();
@@ -700,14 +697,12 @@ function applyFullPayload(payload) {
 
     isConnected = Boolean(status.connected);
     demoMode = Boolean(status.demo_mode);
-    limitedMode = Boolean(status.limited_mode);
 
     updateStatus(status, sessionState);
     updateBusModeIndicator(payload);
     applyWarningThresholds(displayPayload);
     updateConnectionQuality(displayPayload.connection_quality || payload.connection_quality || {});
     updateServiceModeUi();
-    updateLimitedModeUi();
     updateErrorLog(status.recent_errors || []);
     updateVehicleProfileView(displayPayload.vehicle_profile || vehicleProfile);
     updateHealth(displayPayload.health || {});
@@ -755,7 +750,6 @@ async function loadConfig() {
         if (!response.ok) throw new Error(`Server returned status ${response.status}`);
         const config = await response.json();
         demoMode = Boolean(config.demo_mode);
-        limitedMode = Boolean(config.limited_mode);
         pollProfile = String(config.poll_profile?.id || pollProfile || "balanced");
         saveLocalPollProfile(pollProfile);
         demoPreset = String(config.demo_preset || "idle");
@@ -766,7 +760,6 @@ async function loadConfig() {
         }
         renderPortOptions(config.detected_ports || [], config.obd_port || "");
         updateDemoModeUi();
-        updateLimitedModeUi();
         updatePollProfileUi(config.poll_profile || { id: pollProfile });
         updateDemoPresetUi();
         setText("scope-badge", tr("scope_standard_obd", "Standard OBD Only"));
@@ -1215,28 +1208,6 @@ function updateDemoModeUi() {
         copy.innerText = demoMode
             ? tr("demo_mode_live", "Demo mode is live on the {preset} preset and keeps updating automatically.", { preset: presetLabel })
             : tr("demo_mode_off", "Use demo mode to test the UI without a USB adapter or car.");
-    }
-}
-
-function updateLimitedModeUi() {
-    const button = byId("limited-mode-button");
-    const copy = byId("limited-mode-copy");
-    const topbarState = byId("limited-mode-state");
-    if (button) {
-        button.innerText = limitedMode
-            ? tr("limited_mode_disable", "Disable Limited Mode")
-            : tr("limited_mode_enable", "Enable Limited Mode");
-        button.classList.toggle("is-active", limitedMode);
-    }
-    if (copy) {
-        copy.innerText = limitedMode
-            ? tr("limited_mode_live", "Limited Mode is on. Only RPM, speed, coolant temp, ECU voltage, engine load and long fuel trim are polled.")
-            : tr("limited_mode_off_copy", "Limited Mode is off. The scanner polls the full live ECU data set.");
-    }
-    if (topbarState) {
-        topbarState.innerText = limitedMode
-            ? tr("limited_mode_on_short", "On")
-            : tr("limited_mode_off_short", "Off");
     }
 }
 
@@ -1749,7 +1720,7 @@ function buildRecordingPlaybackHtml(samples) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OBD Graph Recording</title>
 <style>
-:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#172033;background:#edf3f8}body{margin:0;padding:24px}.shell{max-width:1280px;margin:0 auto}.hero{background:#fff;border:1px solid #d5e0ea;border-radius:22px;padding:22px 24px;box-shadow:0 18px 44px rgba(34,62,96,.12);display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.eyebrow{color:#0d6efd;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px}h1{font-size:30px;margin:0 0 8px}.muted{color:#62748d;margin:0}.controls{display:flex;gap:10px;flex-wrap:wrap}button{border:1px solid #bdd0e5;background:linear-gradient(180deg,#fff,#eef5fc);border-radius:14px;color:#162237;cursor:pointer;font-weight:900;padding:12px 16px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}.card{background:#fff;border:1px solid #d5e0ea;border-radius:20px;padding:16px;box-shadow:0 12px 30px rgba(34,62,96,.08)}.card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.card strong{font-size:17px}.value{color:#62748d;font-weight:900}canvas{background:#f6f9fc;border:1px solid #e0e8f1;border-radius:14px;width:100%;height:220px}@media(max-width:800px){.hero,.grid{grid-template-columns:1fr;display:grid}.controls{width:100%}button{width:100%}}</style>
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#16263b;background:#e8eef6}body{margin:0;padding:24px}.shell{max-width:1280px;margin:0 auto}.hero{background:#fff;border:1px solid #d3e0ee;border-radius:22px;padding:22px 24px;box-shadow:0 18px 44px rgba(34,62,96,.12);display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.eyebrow{color:#0a6ad6;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin:0 0 8px}h1{font-size:30px;margin:0 0 8px}.muted{color:#5b708c;margin:0}.controls{display:flex;gap:10px;flex-wrap:wrap}button{border:1px solid #b4c9e0;background:linear-gradient(180deg,#fff,#e6f1fe);border-radius:14px;color:#0b1726;cursor:pointer;font-weight:900;padding:12px 16px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}.card{background:#fff;border:1px solid #d3e0ee;border-radius:20px;padding:16px;box-shadow:0 12px 30px rgba(34,62,96,.08)}.card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.card strong{font-size:17px}.value{color:#5b708c;font-weight:900}canvas{background:#f4f8fd;border:1px solid #e3ebf4;border-radius:14px;width:100%;height:220px}@media(max-width:800px){.hero,.grid{grid-template-columns:1fr;display:grid}.controls{width:100%}button{width:100%}}</style>
 </head>
 <body>
 <div class="shell">
@@ -3185,41 +3156,6 @@ checkForUpdates();
     }
 }
 
-async function toggleLimitedMode() {
-    const button = byId("limited-mode-button");
-    if (button) {
-        button.disabled = true;
-    }
-
-    limitedMode = !limitedMode;
-    updateLimitedModeUi();
-
-    try {
-        const response = await fetch("/api/limited-mode", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled: limitedMode })
-        });
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || `Server returned status ${response.status}`);
-        }
-
-        limitedMode = Boolean(result.limited_mode);
-        updateLimitedModeUi();
-        fetchData();
-checkForUpdates();
-    } catch (error) {
-        console.error(error);
-        limitedMode = !limitedMode;
-        updateLimitedModeUi();
-    } finally {
-        if (button) {
-            button.disabled = false;
-        }
-    }
-}
-
 async function setPollProfile(profile) {
     pollProfile = String(profile || "balanced");
     saveLocalPollProfile(pollProfile);
@@ -3237,8 +3173,6 @@ async function setPollProfile(profile) {
         }
 
         pollProfile = String(result.poll_profile?.id || pollProfile);
-        limitedMode = Boolean(result.limited_mode);
-        updateLimitedModeUi();
         updatePollProfileUi(result.poll_profile || { id: pollProfile });
         fetchSupportedSensors();
         fetchData();
@@ -5083,10 +5017,6 @@ if (simpleModeButton) {
 const demoModeButton = byId("demo-mode-button");
 if (demoModeButton) {
     demoModeButton.addEventListener("click", toggleDemoMode);
-}
-const limitedModeButton = byId("limited-mode-button");
-if (limitedModeButton) {
-    limitedModeButton.addEventListener("click", toggleLimitedMode);
 }
 document.querySelectorAll("[data-demo-preset]").forEach((button) => {
     button.addEventListener("click", () => {
