@@ -1,0 +1,34 @@
+{#
+  Bottom status strip.
+
+  The constants of a session - which port, whether the live stream is
+  flowing, and what the scanner reports as its scope - belong on a thin
+  always-on line rather than taking up a panel. This is the row a user
+  checks without thinking, the way a bench tool has a fixed display along
+  its bottom edge.
+#}
+<footer class="statusbar" aria-label="{{ i18n.system.state_title }}">
+    <div class="statusbar-group">
+        <span id="stream-indicator" class="stream-indicator" data-state="connecting" aria-live="polite">
+            <span class="stream-dot" aria-hidden="true"></span>
+            <span class="stream-label">{{ i18n.partials.topbar.live_data }}</span>
+        </span>
+
+        <span class="statusbar-cell">
+            <span class="statusbar-label">{{ i18n.partials.topbar.port }}</span>
+            <strong id="current-port">{{ i18n.common.auto_detect }}</strong>
+        </span>
+
+        {# Moved off the Live page: freezing affects the whole session, so
+           its state belongs on the always-visible strip, not inside one
+           module's panel. #}
+        <span class="statusbar-cell statusbar-cell-wide">
+            <strong id="freeze-indicator" class="freeze-indicator">{{ i18n.live.freeze_indicator }}</strong>
+        </span>
+    </div>
+
+    <div class="statusbar-group statusbar-group-end">
+        <span class="statusbar-note">{{ i18n.partials.topbar.scope_value }}</span>
+        <span class="statusbar-version">{{ app_version }}</span>
+    </div>
+</footer>

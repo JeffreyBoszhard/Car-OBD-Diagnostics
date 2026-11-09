@@ -1,0 +1,67 @@
+{#
+  Top command bar.
+
+  The module navigation lives here now instead of in a left rail: a scan
+  tool is used left-to-right across a screen that is usually wider than it
+  is tall, and a horizontal tab strip gives the workspace its full width
+  back. The identity sits left, the modules in the middle, and the two
+  readings you glance at constantly - adapter state and live data - sit
+  right, nearest the eye's resting point on a wide screen.
+#}
+<header class="appbar" id="app-bar">
+    <a class="appbar-brand" href="#dashboard" data-page="dashboard">
+        <span class="appbar-mark" aria-hidden="true">
+            <span class="appbar-mark-ring"></span>
+            <span class="appbar-mark-text">OBD</span>
+        </span>
+        <span class="appbar-brand-copy">
+            <strong>{{ i18n.partials.sidebar.brand_eyebrow }}</strong>
+            <span class="appbar-brand-version">{{ app_version }}</span>
+        </span>
+    </a>
+
+    <nav class="module-nav" aria-label="{{ i18n.partials.sidebar.brand_eyebrow }}">
+        <div class="module-nav-track">
+            <a class="module-button is-active" href="#dashboard" data-page="dashboard" data-tone="home">
+                <span class="module-icon">HOME</span>
+                <span class="module-copy">
+                    <span class="module-label">{{ i18n.partials.sidebar.nav_home }}</span>
+                </span>
+            </a>
+            {% for card in i18n.home.cards %}
+            <a class="module-button" href="#{{ card.page }}" data-page="{{ card.page }}"
+               data-tone="{{ 'buy' if card.page == 'purchase-checklist' else card.page }}"
+               title="{{ card.description }}">
+                <span class="module-icon">{{ card.icon }}</span>
+                <span class="module-copy">
+                    <span class="module-label">{{ card.title }}</span>
+                </span>
+            </a>
+            {% endfor %}
+            <a class="module-button" href="#history" data-page="history" data-tone="history">
+                <span class="module-icon">HIS</span>
+                <span class="module-copy">
+                    <span class="module-label">{{ i18n.history.title }}</span>
+                </span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="appbar-telemetry">
+        <div class="telemetry-cell">
+            <span class="telemetry-label">{{ i18n.partials.topbar.adapter }}</span>
+            <strong id="adapter-state">{{ i18n.common.searching }}</strong>
+        </div>
+        <div class="telemetry-cell telemetry-cell-live">
+            <span class="telemetry-label">{{ i18n.partials.topbar.live_data }}</span>
+            <strong id="live-state">{{ i18n.partials.topbar.live_value }}</strong>
+        </div>
+        <button id="freeze-button" class="icon-action appbar-freeze" type="button"
+                title="{{ i18n.partials.topbar.freeze }}">{{ i18n.partials.topbar.freeze }}</button>
+        <button id="dock-toggle" class="icon-action appbar-dock-toggle" type="button"
+                aria-expanded="true" aria-controls="inspector-dock"
+                title="{{ i18n.partials.sidebar.connection_eyebrow }}">
+            <span class="dock-toggle-glyph" aria-hidden="true"></span>
+        </button>
+    </div>
+</header>

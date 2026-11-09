@@ -4,6 +4,29 @@ User note: do not remove this file. The scanner reads these entries to show the 
 """
 CHANGELOG = [
     {
+        "version": "v0.9.0",
+        "date": "2026-11-09",
+        "changes": [
+            "Rebuilt Interface",
+            "The whole interface has been designed again from scratch. Nothing was patched over: the old stylesheet and the old page shell were deleted and replaced.",
+            "Navigation moved from a left sidebar to a tab strip along the top of the screen, so every module is one click away and the workspace gets the full width.",
+            "Everything about the session - adapter, ECU, protocol, polling profile, last update - is gathered in a new inspector dock on the right-hand edge, visible from every page instead of only from the sidebar. It slides away when you need the room, and remembers that.",
+            "Added a permanent status strip along the bottom with the live stream state, the adapter port and the freeze state, the way a bench instrument keeps a fixed display along its lower edge.",
+            "The freeze indicator moved out of the Live page onto that strip, because freezing affects the whole session rather than one module.",
+            "Every panel, list, form, dialog and control was redrawn against one consistent design system, so pages that used to look subtly different now match.",
+            "The health score is now a real ring gauge that fills to the score, instead of a static circle.",
+            "Faster And Steadier",
+            "The stylesheet is less than half its previous size and no longer contains the layers of conflicting overrides that had accumulated: 406 forced style rules became 11.",
+            "Every size that affects layout scales with the screen, so the same interface fits a 13-inch laptop and a large monitor without crowding either.",
+            "Three clear reflow points: wide screens get two columns, medium screens one, and on a phone the tabs become a scrolling strip and the dock slides over the content.",
+            "Checked both themes against accessibility contrast targets across 21 text and colour pairings; all pass.",
+            "Error Log File",
+            "The System page can now open the rotating error log file. The feature shipped last release but nothing in the interface ever called it, so it was only reachable with developer tools.",
+            "Verification",
+            "Checked that every element the interface drives still exists after the rebuild, that no duplicate ids were introduced, and that every address the dashboard calls is a real endpoint.",
+        ],
+    },
+    {
         "version": "v0.8.1",
         "date": "2026-11-09",
         "changes": [

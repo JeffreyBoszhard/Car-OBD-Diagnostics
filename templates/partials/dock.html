@@ -1,0 +1,57 @@
+{#
+  Inspector dock.
+
+  Everything about the session - is the adapter there, is the ECU talking,
+  what protocol, when did data last arrive, what is the scanner doing about
+  it - is gathered on the right-hand edge, where it stays visible on every
+  page without competing with the module you are actually reading. It
+  collapses to a thin strip, and that choice is remembered.
+#}
+<aside class="dock" id="inspector-dock" aria-label="{{ i18n.partials.sidebar.connection_eyebrow }}">
+    <section class="dock-block dock-connection">
+        <header class="dock-block-head">
+            <span class="dock-led" id="status-dot" aria-hidden="true"></span>
+            <div class="dock-block-title">
+                <span class="dock-eyebrow">{{ i18n.partials.sidebar.connection_eyebrow }}</span>
+                <strong id="status-text">{{ i18n.partials.sidebar.status_text }}</strong>
+            </div>
+        </header>
+
+        <p id="status-message" class="dock-note">{{ i18n.partials.sidebar.status_message }}</p>
+        <p id="connection-hint" class="dock-note connection-hint">{{ i18n.partials.sidebar.connection_hint }}</p>
+
+        <button id="reconnect-button" class="primary-action dock-reconnect" type="button">
+            {{ i18n.partials.sidebar.retry_connection }}
+        </button>
+    </section>
+
+    <section class="dock-block">
+        <span class="dock-eyebrow">{{ i18n.system.state_title }}</span>
+        <dl class="dock-readout">
+            <div>
+                <dt>{{ i18n.system.protocol }}</dt>
+                <dd id="protocol">{{ i18n.partials.sidebar.protocol }}</dd>
+            </div>
+            <div>
+                <dt>{{ i18n.partials.topbar.profile }}</dt>
+                <dd id="profile-state">{{ i18n.partials.topbar.profile_value }}</dd>
+            </div>
+            <div>
+                <dt>{{ i18n.partials.sidebar.last_update_eyebrow }}</dt>
+                <dd id="last-update">{{ i18n.partials.sidebar.last_update }}</dd>
+            </div>
+            <div>
+                <dt>{{ i18n.partials.topbar.scope }}</dt>
+                <dd id="scope-badge">{{ i18n.partials.topbar.scope_value }}</dd>
+            </div>
+        </dl>
+        <p id="last-successful-update" class="dock-note dock-note-dim">{{ i18n.partials.sidebar.last_live_data }}</p>
+    </section>
+
+    {#
+      The adapter/port/car/live quality pills are not repeated here: they
+      already exist on the Live page, and the script drives them by id, so a
+      second copy would be a duplicate id and only one of the two would ever
+      update. The LED and the status line above carry the same answer.
+    #}
+</aside>

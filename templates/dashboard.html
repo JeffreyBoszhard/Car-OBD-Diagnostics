@@ -2,83 +2,86 @@
 <html lang="{{ i18n.meta.html_lang }}" {% if theme in ("light", "dark") %}data-theme="{{ theme }}"{% endif %}>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="{{ 'dark' if theme == 'dark' else ('light' if theme == 'light' else 'light dark') }}">
     <title>OBD Scanner {{ app_version }}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
 </head>
 <body data-dashboard-page="true">
+
 {% include "partials/startup_overlay.html" %}
 
-<div id="update-notification" class="update-notification update-flyin" hidden>
-    <div>
+<div id="update-notification" class="update-notification" hidden>
+    <div class="update-notification-copy">
         <strong id="update-title">Update available</strong>
         <p id="update-message">A new version is available.</p>
     </div>
     <a id="update-link" class="secondary-action compact-action" href="#" target="_blank" rel="noopener">Open GitHub</a>
-    <button id="update-close" class="update-close" type="button" aria-label="Close update notification">&times;</button>
+    <button id="update-close" class="icon-action" type="button" aria-label="Close update notification">&times;</button>
 </div>
-
 
 <div id="offline-indicator" class="offline-indicator" hidden>
     <strong>Offline mode</strong>
     <span>Update check is not available. Live local scanning keeps working.</span>
 </div>
 
-<div id="setup-modal" class="setup-modal" hidden>
-    <div class="setup-card">
-        <p class="eyebrow">First dashboard setup</p>
-        <h2>Set up your scanner</h2>
+<div id="setup-modal" class="modal-overlay" hidden>
+    <div class="modal-card setup-card" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+        <p class="eyebrow">First run</p>
+        <h2 id="setup-title">Set up your scanner</h2>
         <p class="panel-copy">Scans, the car journal and settings are stored in a local <strong>scanner_config.db</strong> file next to the app. Language and units are saved in <strong>dashboard_setup.json</strong>.</p>
+
         <label class="setup-field-label" for="setup-language">Language</label>
         <select id="setup-language" class="setup-select">
             {% for option in language_options %}<option value="{{ option.code }}" {% if option.code == lang %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
         </select>
+
         <label class="setup-field-label" for="setup-units">Units</label>
         <select id="setup-units" class="setup-select">
             {% for option in unit_options %}<option value="{{ option.code }}" {% if option.code == units %}selected{% endif %}>{{ option.name }}</option>{% endfor %}
         </select>
+
         <p id="setup-result" class="setup-result"></p>
-        <button id="setup-save-button" class="secondary-action" type="button">Save setup</button>
+        <div class="modal-actions">
+            <button id="setup-save-button" class="primary-action" type="button">Save setup</button>
+        </div>
     </div>
 </div>
 
-<div id="export-modal" class="setup-modal compact-modal" hidden>
-    <div class="setup-card">
+<div id="export-modal" class="modal-overlay" hidden>
+    <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="export-title">
         <p class="eyebrow">Export scan</p>
-        <h2>Choose export format</h2>
-        <div class="setup-actions">
-            <button id="export-html-button" class="secondary-action" type="button">HTML report</button>
+        <h2 id="export-title">Choose export format</h2>
+        <div class="modal-actions modal-actions-stack">
+            <button id="export-html-button" class="primary-action" type="button">HTML report</button>
             <button id="export-csv-button" class="secondary-action" type="button">CSV spreadsheet</button>
             <button id="export-cancel-button" class="secondary-action" type="button">Cancel</button>
         </div>
     </div>
 </div>
 
-<div class="tablet-frame">
-    <div class="tablet-bezel">
-        <div class="tablet-screen">
-            {% include "partials/sidebar.html" %}
+<div class="console-shell">
+    {% include "partials/appbar.html" %}
 
-            <main class="tablet-main">
-                {% include "partials/topbar.html" %}
-                {% include "pages/home.html" %}
-                {% include "pages/live.html" %}
-                {% include "pages/codes.html" %}
-                {% include "pages/vehicle.html" %}
-                {% include "pages/sensors.html" %}
-                {% include "pages/purchase_checklist.html" %}
-                {% include "pages/report.html" %}
-                {% include "pages/history.html" %}
-                {% include "pages/garage.html" %}
-                {% include "pages/service.html" %}
-                {% include "pages/system.html" %}
-            </main>
-        </div>
-    </div>
+    <main class="workspace">
+        {% include "pages/home.html" %}
+        {% include "pages/live.html" %}
+        {% include "pages/codes.html" %}
+        {% include "pages/vehicle.html" %}
+        {% include "pages/sensors.html" %}
+        {% include "pages/purchase_checklist.html" %}
+        {% include "pages/report.html" %}
+        {% include "pages/history.html" %}
+        {% include "pages/garage.html" %}
+        {% include "pages/service.html" %}
+        {% include "pages/system.html" %}
+    </main>
+
+    {% include "partials/dock.html" %}
+    {% include "partials/statusbar.html" %}
 </div>
 
 {% include "partials/confirm_dialog.html" %}

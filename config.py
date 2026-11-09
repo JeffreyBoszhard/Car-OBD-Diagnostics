@@ -30,7 +30,7 @@ def _env_int(name, default):
 
 # Version shown in the dashboard, sidebar and exported HTML reports.
 # Bump this and add an entry to changelog.py whenever a change is made.
-APP_VERSION = "v0.8.1"
+APP_VERSION = "v0.9.0"
 
 # Changelog entries live in changelog.py. Bump APP_VERSION and add a new entry
 # there whenever a change is made.

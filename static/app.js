@@ -566,9 +566,11 @@ function initPageFromHash() {
 }
 
 function updateShellMode() {
-    const screen = document.querySelector(".tablet-screen");
+    const screen = document.querySelector(".console-shell");
     if (!screen) return;
-    screen.classList.toggle("is-home-only", activePage === "dashboard");
+    // On the home view the dock steps aside so the launcher gets the full
+    // width; everything else keeps it.
+    screen.classList.toggle("is-home-view", activePage === "dashboard");
 }
 
 function refreshGaugeLayout() {
@@ -1855,6 +1857,15 @@ function updateHealth(health) {
     if (healthSignature !== lastRenderedHealthSignature) {
         lastRenderedHealthSignature = healthSignature;
         setText("health-score", score);
+        // The ring is a conic gradient: tell it how far round to sweep and
+        // which signal colour to use. A score of "--" leaves it empty.
+        const ring = document.querySelector(".score-ring");
+        if (ring) {
+            const numeric = Number(score);
+            const pct = Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric)) : 0;
+            ring.style.setProperty("--score-angle", `${(pct / 100) * 360}deg`);
+            ring.dataset.status = status;
+        }
     setText("health-headline", health.headline || tr("health_unavailable", "Health report unavailable."));
         setClassName("health-status-badge", `health-status-badge status-${status}`);
     setText("health-status-badge", status === "danger" ? tr("health_attention", "Attention") : status === "warning" ? tr("health_check", "Check") : tr("health_good", "Good"));
@@ -4914,50 +4925,83 @@ async function refreshExtendedData() {
 
 
 // ---------------------------------------------------------------------------
-// Navigation rail
+// Inspector dock
 // ---------------------------------------------------------------------------
-// The rail collapses to an icon strip, which is what you want on a tablet
-// propped on a wing. The choice is remembered per browser; a failure to read
-// or write that is not worth breaking the page over, so it is swallowed.
-const RAIL_COLLAPSED_KEY = "obd_rail_collapsed";
+// The dock holds the session state on the right-hand edge and collapses out
+// of the way when the workspace needs the room. The choice is remembered per
+// browser; a failure to read or write that is not worth breaking the page
+// over, so it is swallowed.
+const DOCK_COLLAPSED_KEY = "obd_dock_collapsed";
 
-function applyRailCollapsed(collapsed) {
-    const rail = byId("scanner-rail");
-    const toggle = byId("rail-toggle");
-    if (!rail) return;
+function applyDockCollapsed(collapsed) {
+    const dock = byId("inspector-dock");
+    const toggle = byId("dock-toggle");
+    if (!dock) return;
 
-    rail.classList.toggle("is-collapsed", collapsed);
+    dock.classList.toggle("is-collapsed", collapsed);
+    document.body.classList.toggle("dock-collapsed", collapsed);
     if (toggle) toggle.setAttribute("aria-expanded", String(!collapsed));
 
     // The dial numbers are placed from the measured dial size, so they have
-    // to be re-placed once the rail has finished changing width.
+    // to be re-placed once the workspace has finished changing width.
     window.setTimeout(positionGaugeTicks, 60);
     window.setTimeout(positionGaugeTicks, 320);
 }
 
-function initNavigationRail() {
-    const rail = byId("scanner-rail");
-    const toggle = byId("rail-toggle");
-    if (!rail) return;
+function initInspectorDock() {
+    const dock = byId("inspector-dock");
+    const toggle = byId("dock-toggle");
+    if (!dock) return;
 
     let collapsed = false;
     try {
-        collapsed = window.localStorage.getItem(RAIL_COLLAPSED_KEY) === "1";
+        collapsed = window.localStorage.getItem(DOCK_COLLAPSED_KEY) === "1";
     } catch (error) {
         collapsed = false;
     }
-    applyRailCollapsed(collapsed);
+    applyDockCollapsed(collapsed);
 
     if (!toggle) return;
     toggle.addEventListener("click", () => {
-        collapsed = !rail.classList.contains("is-collapsed");
-        applyRailCollapsed(collapsed);
+        collapsed = !dock.classList.contains("is-collapsed");
+        applyDockCollapsed(collapsed);
         try {
-            window.localStorage.setItem(RAIL_COLLAPSED_KEY, collapsed ? "1" : "0");
+            window.localStorage.setItem(DOCK_COLLAPSED_KEY, collapsed ? "1" : "0");
         } catch (error) {
             /* a browser with storage disabled simply does not remember it */
         }
     });
+}
+
+// Loads the tail of the rotating error log file. The in-page list only
+// holds what happened since the app started; the file goes back further.
+async function loadErrorLogFile() {
+    const target = byId("error-log-file");
+    const button = byId("error-log-file-button");
+    if (!target) return;
+
+    if (!target.hidden) {
+        target.hidden = true;
+        if (button) button.classList.remove("is-active");
+        return;
+    }
+
+    target.hidden = false;
+    target.textContent = tr("log_file_loading", "Loading the error log file...");
+    if (button) button.classList.add("is-active");
+
+    try {
+        const response = await fetch("/api/errors/log?lines=300");
+        if (!response.ok) throw new Error(`Server returned status ${response.status}`);
+        const payload = await response.json();
+        const lines = payload.lines || [];
+        target.textContent = lines.length
+            ? lines.join("\n")
+            : tr("log_file_empty", "The error log file is empty - nothing has gone wrong yet.");
+    } catch (error) {
+        console.error(error);
+        target.textContent = tr("log_file_failed", "The error log file could not be read.");
+    }
 }
 
 function on(id, eventName, handler) {
@@ -4970,6 +5014,7 @@ function on(id, eventName, handler) {
 initPollProfileButtons();
 on("freeze-button", "click", toggleFreeze);
 on("extended-refresh", "click", refreshExtendedData);
+on("error-log-file-button", "click", loadErrorLogFile);
 on("clear-button", "click", clearDTC);
 on("clear-button-codes", "click", clearDTC);
 on("port-form", "submit", savePort);
@@ -5048,7 +5093,7 @@ initUnitsSwitcher();
 initThemeSwitcher();
 initPortDropdown();
 initNavigation();
-initNavigationRail();
+initInspectorDock();
 initDashboardLauncher();
 initPageFromHash();
 updateFreezeUi();
