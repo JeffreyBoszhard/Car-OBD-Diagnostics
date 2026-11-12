@@ -4,6 +4,22 @@ User note: do not remove this file. The scanner reads these entries to show the 
 """
 CHANGELOG = [
     {
+        "version": "v0.9.1",
+        "date": "2026-11-10",
+        "changes": [
+            "Real Instrument Gauges",
+            "The RPM and speed dials are now drawn as proper instruments: a graduated scale with major and minor divisions, printed numbers that sit correctly on the arc, a redline band on the tachometer and a tapered needle on a centre hub.",
+            "The dials are drawn as true vector instruments, so they are sharp and correctly laid out at any size and on any screen, instead of being positioned by measuring the screen and calculating pixels.",
+            "This also removes the cause of the broken dials in the previous release: when the gauge was measured while hidden or while sitting in a narrow column, the measurement came back as zero and every number piled up in the middle.",
+            "The two dials now sit side by side across the full width at the top of the Live page, rather than squeezed into the narrow companion column.",
+            "The speed dial is printed in the unit system you selected: a 0-160 mph face in imperial, not a km/h face with mph numbers on it.",
+            "Fixed: Pages Showing The Wrong Content",
+            "Switching between Car Journal, System and Saved Scan History kept showing the same page. Several pages are two-column layouts in their own right, and those layout rules were cancelling out the rule that hides an inactive page, so those pages were permanently visible and stacked on top of each other - you always saw whichever came first.",
+            "Demo Mode",
+            "Demo mode and a test adapter port had been left switched on in the saved settings. Both are cleared, so the scanner starts looking for a real adapter again.",
+        ],
+    },
+    {
         "version": "v0.9.0",
         "date": "2026-11-09",
         "changes": [

@@ -374,80 +374,6 @@ function setLiveMetricText(id, nextText) {
     element.textContent = nextText;
 }
 
-// The dial numbers ring the scale marks from the outside, and where they
-// belong follows from the dial's own geometry rather than from a fixed
-// pixel radius:
-//
-//   .tach-face::before  inset 7%, ring masked to 73-88% of its radius
-//                       -> the scale marks end at 0.378 of the face
-//                          diameter from the centre
-//
-// A number is placed so its inner edge clears that, which also keeps the
-// bottom numbers off the centre readout. The old code used a fixed 146px:
-// correct at exactly one dial size, and pushed onto - or over - the rim at
-// every smaller one, which is what made the scale look crooked.
-const TICK_RING_OUTER_RATIO = 0.378;
-const TICK_LABEL_GAP = 4;
-
-function positionGaugeTicks() {
-    const gauges = [
-        { selector: ".tach-face", gauge: "rpm" },
-        { selector: ".speed-face", gauge: "speed" }
-    ];
-
-    gauges.forEach(({ selector, gauge }) => {
-        const face = document.querySelector(selector);
-        if (!face) return;
-
-        const faceRect = face.getBoundingClientRect();
-        const size = Math.min(faceRect.width, faceRect.height);
-        if (!size) return;
-
-        const centerX = faceRect.width / 2;
-        const centerY = faceRect.height / 2;
-
-        face.querySelectorAll(`.tick[data-gauge="${gauge}"]`).forEach((tick) => {
-            const angle = Number(tick.dataset.angle || 0) * (Math.PI / 180);
-            const cos = Math.cos(angle);
-            const sin = Math.sin(angle);
-
-            // How far the label box reaches along its own radius. A number
-            // is wider than it is tall, so one at the side of the dial needs
-            // more clearance than one at the top - using half the height for
-            // both is what let the side numbers hang over the rim.
-            const reach = Math.abs(cos) * ((tick.offsetWidth || 40) / 2)
-                + Math.abs(sin) * ((tick.offsetHeight || 20) / 2);
-
-            const radius = Math.min(
-                size * TICK_RING_OUTER_RATIO + reach + TICK_LABEL_GAP,
-                size * 0.5 - reach - 3
-            );
-
-            tick.style.left = `${centerX + cos * radius}px`;
-            tick.style.top = `${centerY + sin * radius}px`;
-            tick.style.transform = "translate(-50%, -50%)";
-        });
-    });
-}
-
-// The dial is fluid, so the numbers have to be re-placed whenever its size
-// changes - a window resize, the sidebar collapsing, or the panel reflowing.
-let gaugeResizeObserved = false;
-
-function observeGaugeResize() {
-    // Attach once: this runs on every page switch, and a fresh observer per
-    // call would pile up watchers on the same two elements.
-    if (gaugeResizeObserved) return;
-    gaugeResizeObserved = true;
-
-    if (!("ResizeObserver" in window)) {
-        window.addEventListener("resize", positionGaugeTicks);
-        return;
-    }
-    const observer = new ResizeObserver(() => positionGaugeTicks());
-    document.querySelectorAll(".tach-face, .speed-face").forEach((face) => observer.observe(face));
-}
-
 function sanitizeKey(value) {
     return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }
@@ -574,11 +500,9 @@ function updateShellMode() {
 }
 
 function refreshGaugeLayout() {
-    observeGaugeResize();
-    window.requestAnimationFrame(() => {
-        positionGaugeTicks();
-        window.requestAnimationFrame(positionGaugeTicks);
-    });
+    // The SVG dials scale themselves; this only has to make sure they exist
+    // once the Live page is first shown.
+    initGauges();
 }
 
 window.addEventListener("hashchange", initPageFromHash);
@@ -2377,15 +2301,159 @@ function updateVehicleProfileView(profile) {
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Instrument gauges
+// ---------------------------------------------------------------------------
+// Each gauge is drawn once as an SVG in a 0..200 coordinate space and then
+// scaled by the browser. Ticks, numbers, the redline band and the needle are
+// real geometry inside that space, so the dial is correct at every size and
+// needs no measuring, no resize observer and no pixel arithmetic.
+const GAUGE_START_DEG = 135;   // bottom-left
+const GAUGE_SWEEP_DEG = 270;   // clockwise to bottom-right
+const GAUGE_CX = 100;
+const GAUGE_CY = 100;
+const GAUGE_R_OUTER = 92;      // dial rim
+const GAUGE_R_TICK = 84;       // outer end of a major tick
+const GAUGE_R_TICK_IN = 71;    // inner end of a major tick
+const GAUGE_R_MINOR_IN = 78;
+const GAUGE_R_LABEL = 59;      // centre of the printed numbers
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function gaugeAngle(value, min, max) {
+    const span = max - min || 1;
+    const ratio = Math.min(1, Math.max(0, (value - min) / span));
+    return GAUGE_START_DEG + ratio * GAUGE_SWEEP_DEG;
+}
+
+function gaugePoint(angleDeg, radius) {
+    const a = (angleDeg * Math.PI) / 180;
+    return [GAUGE_CX + Math.cos(a) * radius, GAUGE_CY + Math.sin(a) * radius];
+}
+
+function gaugeArcPath(fromDeg, toDeg, radius) {
+    const [x1, y1] = gaugePoint(fromDeg, radius);
+    const [x2, y2] = gaugePoint(toDeg, radius);
+    const large = Math.abs(toDeg - fromDeg) > 180 ? 1 : 0;
+    return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${radius} ${radius} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+
+function svgEl(name, attrs) {
+    const node = document.createElementNS(SVG_NS, name);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    return node;
+}
+
+function buildGauge(host) {
+    const min = Number(host.dataset.min || 0);
+    const max = Number(host.dataset.max || 100);
+    const major = Number(host.dataset.major || 10);
+    const minor = Number(host.dataset.minor || 0);
+    const divisor = Number(host.dataset.divisor || 1);
+    const redline = host.dataset.redline ? Number(host.dataset.redline) : null;
+
+    const svg = svgEl("svg", {
+        class: "gauge-svg",
+        viewBox: "0 0 200 200",
+        role: "img",
+        focusable: "false"
+    });
+
+    // dial face and rim
+    svg.appendChild(svgEl("circle", { class: "gauge-face", cx: GAUGE_CX, cy: GAUGE_CY, r: GAUGE_R_OUTER }));
+    svg.appendChild(svgEl("path", {
+        class: "gauge-track",
+        d: gaugeArcPath(GAUGE_START_DEG, GAUGE_START_DEG + GAUGE_SWEEP_DEG, GAUGE_R_TICK - 2)
+    }));
+
+    // redline band, where the scale has one
+    if (redline !== null && redline < max) {
+        svg.appendChild(svgEl("path", {
+            class: "gauge-redline",
+            d: gaugeArcPath(gaugeAngle(redline, min, max), gaugeAngle(max, min, max), GAUGE_R_TICK - 2)
+        }));
+    }
+
+    // minor ticks
+    if (minor > 0) {
+        for (let v = min; v <= max + 1e-6; v += minor) {
+            if (Math.abs(v % major) < 1e-6) continue;
+            const angle = gaugeAngle(v, min, max);
+            const [x1, y1] = gaugePoint(angle, GAUGE_R_TICK);
+            const [x2, y2] = gaugePoint(angle, GAUGE_R_MINOR_IN);
+            svg.appendChild(svgEl("line", { class: "gauge-tick-minor", x1, y1, x2, y2 }));
+        }
+    }
+
+    // major ticks and their numbers
+    for (let v = min; v <= max + 1e-6; v += major) {
+        const angle = gaugeAngle(v, min, max);
+        const [x1, y1] = gaugePoint(angle, GAUGE_R_TICK);
+        const [x2, y2] = gaugePoint(angle, GAUGE_R_TICK_IN);
+        const past = redline !== null && v >= redline;
+        svg.appendChild(svgEl("line", {
+            class: `gauge-tick-major${past ? " is-redline" : ""}`,
+            x1, y1, x2, y2
+        }));
+
+        const [lx, ly] = gaugePoint(angle, GAUGE_R_LABEL);
+        const label = svgEl("text", {
+            class: `gauge-label${past ? " is-redline" : ""}`,
+            x: lx.toFixed(2),
+            y: ly.toFixed(2),
+            "text-anchor": "middle",
+            "dominant-baseline": "central"
+        });
+        const printed = v / divisor;
+        label.textContent = Number.isInteger(printed) ? String(printed) : printed.toFixed(1);
+        svg.appendChild(label);
+    }
+
+    // needle: drawn pointing right, rotated about the centre
+    const needle = svgEl("g", {
+        class: "gauge-needle",
+        id: `${host.dataset.gauge}-needle`,
+        transform: `rotate(${GAUGE_START_DEG} ${GAUGE_CX} ${GAUGE_CY})`
+    });
+    needle.appendChild(svgEl("path", {
+        class: "gauge-needle-body",
+        d: `M ${GAUGE_CX - 11} ${GAUGE_CY} L ${GAUGE_CX} ${GAUGE_CY - 3.6} L ${GAUGE_CX + GAUGE_R_TICK_IN - 4} ${GAUGE_CY - 1} L ${GAUGE_CX + GAUGE_R_TICK_IN - 4} ${GAUGE_CY + 1} L ${GAUGE_CX} ${GAUGE_CY + 3.6} Z`
+    }));
+    svg.appendChild(needle);
+
+    svg.appendChild(svgEl("circle", { class: "gauge-cap", cx: GAUGE_CX, cy: GAUGE_CY, r: 9 }));
+    svg.appendChild(svgEl("circle", { class: "gauge-cap-inner", cx: GAUGE_CX, cy: GAUGE_CY, r: 3.4 }));
+
+    host.prepend(svg);
+    host.dataset.built = "1";
+}
+
+function initGauges() {
+    document.querySelectorAll(".gauge[data-gauge]").forEach((host) => {
+        if (host.dataset.built) return;
+        // The speed dial is printed in whichever units the dashboard is set
+        // to, so an imperial session gets a 0-160 mph face, not a km/h face
+        // with mph numbers on it.
+        if (host.dataset.gauge === "speed") {
+            host.dataset.max = String(SPEED_MAX);
+            host.dataset.major = "20";
+            host.dataset.minor = "10";
+        }
+        buildGauge(host);
+    });
+}
+
+function setNeedleAngle(id, angle) {
+    const needle = document.getElementById(id);
+    if (!needle) return;
+    needle.setAttribute("transform", `rotate(${angle.toFixed(2)} ${GAUGE_CX} ${GAUGE_CY})`);
+}
+
 function renderGauges(now = performance.now()) {
-    const rpmNeedle = document.getElementById("rpm-needle");
-    const speedNeedle = document.getElementById("speed-needle");
     const rpmValue = document.getElementById("rpm-value");
     const speedValue = document.getElementById("speed-value");
-    const tachFace = document.querySelector(".tach-face");
-    const speedFace = document.querySelector(".speed-face");
 
-    if (!rpmNeedle || !rpmValue || !tachFace) {
+    if (!rpmValue) {
         requestAnimationFrame(renderGauges);
         return;
     }
@@ -2401,18 +2469,19 @@ function renderGauges(now = performance.now()) {
     const rpmIntensity = clamp(currentRpm / TACH_MAX_RPM, 0, 1);
     const speedIntensity = clamp(currentSpeed / SPEED_MAX, 0, 1);
 
-    rpmNeedle.style.transform = `rotate(${rpmAngle}deg)`;
-    if (speedNeedle) {
-        speedNeedle.style.transform = `rotate(${speedAngle}deg)`;
-    }
+    setNeedleAngle("rpm-needle", rpmAngle);
+    setNeedleAngle("speed-needle", speedAngle);
+
     rpmValue.textContent = currentRpm / 1000 < 0.05 ? "0" : (currentRpm / 1000).toFixed(1);
-    speedValue.textContent = currentSpeed < 0.05 ? "0" : String(Math.round(currentSpeed));
-    tachFace.style.setProperty("--rpm-glow", `${0.12 + rpmIntensity * 0.5}`);
-    tachFace.style.setProperty("--rpm-scale", `${1 + rpmIntensity * 0.01}`);
-    if (speedFace) {
-        speedFace.style.setProperty("--rpm-glow", `${0.12 + speedIntensity * 0.45}`);
-        speedFace.style.setProperty("--rpm-scale", `${1 + speedIntensity * 0.008}`);
+    if (speedValue) {
+        speedValue.textContent = currentSpeed < 0.05 ? "0" : String(Math.round(currentSpeed));
     }
+
+    // The dial lights up a little as the reading climbs.
+    document.querySelectorAll(".gauge").forEach((host) => {
+        const intensity = host.dataset.gauge === "speed" ? speedIntensity : rpmIntensity;
+        host.style.setProperty("--gauge-intensity", intensity.toFixed(3));
+    });
 
     renderCharts(now);
     requestAnimationFrame(renderGauges);
@@ -4944,8 +5013,6 @@ function applyDockCollapsed(collapsed) {
 
     // The dial numbers are placed from the measured dial size, so they have
     // to be re-placed once the workspace has finished changing width.
-    window.setTimeout(positionGaugeTicks, 60);
-    window.setTimeout(positionGaugeTicks, 320);
 }
 
 function initInspectorDock() {
@@ -5314,11 +5381,9 @@ renderVehicleLookupHistory();
 fetchData();
 checkForUpdates();
 checkChangelog();
-window.addEventListener("load", () => {
-    positionGaugeTicks();
-    window.requestAnimationFrame(positionGaugeTicks);
-});
-window.addEventListener("resize", positionGaugeTicks);
+// The SVG dials scale with their container, so there is nothing to
+// recompute on load or resize - only to build, once.
+window.addEventListener("load", initGauges);
 
 
 

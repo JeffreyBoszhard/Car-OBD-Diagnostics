@@ -42,22 +42,14 @@
                     </div>
                     <span class="live-pill">{{ i18n.live.live_badge }}</span>
                 </div>
-                <div class="tachometer" aria-label="{{ i18n.live.rpm_meter_aria }}">
-                    <div class="tach-face">
-                        <div class="redline"></div>
-                        <div class="tick t0" data-gauge="rpm" data-angle="135">0</div>
-                        <div class="tick t1" data-gauge="rpm" data-angle="168.75">1</div>
-                        <div class="tick t2" data-gauge="rpm" data-angle="202.5">2</div>
-                        <div class="tick t3" data-gauge="rpm" data-angle="236.25">3</div>
-                        <div class="tick t4" data-gauge="rpm" data-angle="270">4</div>
-                        <div class="tick t5" data-gauge="rpm" data-angle="303.75">5</div>
-                        <div class="tick t6" data-gauge="rpm" data-angle="337.5">6</div>
-                        <div class="tick t7" data-gauge="rpm" data-angle="371.25">7</div>
-                        <div class="tick t8" data-gauge="rpm" data-angle="405">8</div>
-                        <div class="needle" id="rpm-needle"></div>
-                        <div class="needle-cap"></div>
-                        <div class="rpm-readout"><strong id="rpm-value">0</strong><span>{{ i18n.live.rpm_scale }}</span></div>
+                <div class="gauge" data-gauge="rpm" data-min="0" data-max="8000"
+                     data-major="1000" data-minor="250" data-divisor="1000"
+                     data-redline="6500" aria-label="{{ i18n.live.rpm_meter_aria }}">
+                    <div class="gauge-readout">
+                        <strong id="rpm-value">0</strong>
+                        <span>{{ i18n.live.rpm_scale }}</span>
                     </div>
+                </div>
                 </div>
             </article>
 
@@ -69,26 +61,14 @@
                     </div>
                     <span class="live-pill">{{ i18n.live.live_badge }}</span>
                 </div>
-                <div class="tachometer" aria-label="{{ i18n.live.speed_meter_aria }}">
-                    <div class="tach-face speed-face">
-                        <div class="tick s0" data-gauge="speed" data-angle="135">0</div>
-                        <div class="tick s1" data-gauge="speed" data-angle="155.77">20</div>
-                        <div class="tick s2" data-gauge="speed" data-angle="176.54">40</div>
-                        <div class="tick s3" data-gauge="speed" data-angle="197.31">60</div>
-                        <div class="tick s4" data-gauge="speed" data-angle="218.08">80</div>
-                        <div class="tick s5" data-gauge="speed" data-angle="238.85">100</div>
-                        <div class="tick s6" data-gauge="speed" data-angle="259.62">120</div>
-                        <div class="tick s7" data-gauge="speed" data-angle="280.38">140</div>
-                        <div class="tick s8" data-gauge="speed" data-angle="301.15">160</div>
-                        <div class="tick s9" data-gauge="speed" data-angle="321.92">180</div>
-                        <div class="tick s10" data-gauge="speed" data-angle="342.69">200</div>
-                        <div class="tick s11" data-gauge="speed" data-angle="363.46">220</div>
-                        <div class="tick s12" data-gauge="speed" data-angle="384.23">240</div>
-                        <div class="tick s13" data-gauge="speed" data-angle="405">260</div>
-                        <div class="needle speed-needle" id="speed-needle"></div>
-                        <div class="needle-cap"></div>
-                        <div class="rpm-readout speed-readout"><strong id="speed-value">0</strong><span>{{ i18n.live.speed_unit }}</span></div>
+                <div class="gauge gauge-speed" data-gauge="speed" data-min="0" data-max="260"
+                     data-major="20" data-minor="10" data-divisor="1"
+                     aria-label="{{ i18n.live.speed_meter_aria }}">
+                    <div class="gauge-readout">
+                        <strong id="speed-value">0</strong>
+                        <span>{{ i18n.live.speed_unit }}</span>
                     </div>
+                </div>
                 </div>
             </article>
         </section>

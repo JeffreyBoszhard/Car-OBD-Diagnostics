@@ -803,8 +803,16 @@ body.dock-collapsed .dock-toggle-glyph::after { width: 0; }
 /* ===========================================================================
    4. PAGES
    ======================================================================== */
-.page-screen {
+/* A page root may also carry a layout class (the history and car-journal
+   pages are two-column layouts in their own right). Those layout rules
+   declare display:grid with the same specificity as .page-screen, so
+   hiding has to out-specify them - otherwise every such page stays
+   permanently visible and they stack on top of each other. */
+.page-screen:not(.is-active) {
     display: none;
+}
+
+.page-screen {
     height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
@@ -819,7 +827,7 @@ body.dock-collapsed .dock-toggle-glyph::after { width: 0; }
     grid-auto-rows: max-content;
 }
 
-.page-screen.is-leaving { display: none; }
+.page-screen.is-leaving:not(.is-active) { display: none; }
 
 /* ===========================================================================
    5. PANELS
@@ -1557,136 +1565,145 @@ form { display: grid; gap: var(--gap-sm); }
 /* ===========================================================================
    9. GAUGES
    ---------------------------------------------------------------------------
-   The dial is sized from both axes: on a short screen a large gauge is what
-   pushes everything else below the fold. Its numbers are positioned by the
-   script from the measured face size, so they follow this automatically.
+   Real instruments, drawn as SVG in a 0..200 coordinate space and scaled by
+   the browser. Everything - ticks, numbers, redline band, needle - is
+   geometry inside that space, so a dial is correct at any size with no
+   measuring and no per-pixel placement.
    ======================================================================== */
-:root { --dial: clamp(166px, min(20vw, 29vh), 330px); }
-
 .tachometer,
 .scanner-gauge-card,
 .speed-gauge-panel,
 .rpm-panel { display: grid; justify-items: center; }
 
-.tach-face,
-.speed-face {
+.gauge {
+    --gauge-intensity: 0;
     aspect-ratio: 1;
-    background:
-        radial-gradient(circle at center, var(--surface) 0 56%, var(--dial-face) 57% 100%);
-    border: 1px solid var(--dial-rim);
-    border-radius: 50%;
-    box-shadow: var(--shadow-sm), inset 0 2px 16px rgba(10, 30, 60, .05);
-    margin-top: var(--gap-sm);
-    max-width: var(--dial);
+    margin: var(--gap-sm) auto 0;
+    max-width: clamp(190px, min(26vw, 38vh), 400px);
     position: relative;
     width: 100%;
 }
 
-/* scale marks */
-.tach-face::before,
-.speed-face::before {
-    background:
-        repeating-conic-gradient(from 225deg, var(--line-strong) 0deg 1.1deg, transparent 1.1deg 12deg),
-        repeating-conic-gradient(from 225deg, var(--text-mute) 0deg 2.2deg, transparent 2.2deg 33.75deg);
-    border-radius: 50%;
-    content: "";
-    inset: 7%;
-    -webkit-mask: radial-gradient(circle, transparent 0 72%, #000 73% 88%, transparent 89%);
-    mask: radial-gradient(circle, transparent 0 72%, #000 73% 88%, transparent 89%);
-    position: absolute;
+.gauge-svg {
+    display: block;
+    height: 100%;
+    overflow: visible;
+    width: 100%;
 }
 
-.redline {
-    background: conic-gradient(from 45deg, transparent 0deg 225deg, var(--red) 225deg 270deg, transparent 270deg 360deg);
-    border-radius: 50%;
-    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--red) 40%, transparent));
-    inset: 10%;
-    -webkit-mask: radial-gradient(circle, transparent 0 78%, #000 79% 88%, transparent 89%);
-    mask: radial-gradient(circle, transparent 0 78%, #000 79% 88%, transparent 89%);
-    position: absolute;
+.gauge-face {
+    fill: var(--dial-face);
+    stroke: var(--dial-rim);
+    stroke-width: 1.5;
+    filter: drop-shadow(0 2px 10px rgba(10, 30, 60, .07));
 }
 
-.tick {
-    color: var(--text);
-    font-size: clamp(12px, calc(var(--dial) * .062), 20px);
+.gauge-track {
+    fill: none;
+    stroke: var(--surface-3);
+    stroke-linecap: round;
+    stroke-width: 9;
+}
+
+.gauge-redline {
+    fill: none;
+    stroke: var(--red);
+    stroke-linecap: butt;
+    stroke-width: 9;
+    opacity: .85;
+}
+
+.gauge-tick-major {
+    stroke: var(--text-dim);
+    stroke-linecap: round;
+    stroke-width: 2.6;
+}
+
+.gauge-tick-major.is-redline { stroke: var(--red); }
+
+.gauge-tick-minor {
+    stroke: var(--text-mute);
+    stroke-linecap: round;
+    stroke-width: 1.2;
+    opacity: .6;
+}
+
+.gauge-label {
+    fill: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
     font-weight: 700;
-    left: 50%;
-    position: absolute;
-    text-align: center;
-    top: 50%;
-    user-select: none;
-    width: clamp(26px, calc(var(--dial) * .118), 40px);
+    letter-spacing: -0.02em;
 }
 
-.speed-face .tick {
-    font-size: clamp(9.5px, calc(var(--dial) * .043), 14px);
-    width: clamp(28px, calc(var(--dial) * .13), 44px);
-}
+.gauge-label.is-redline { fill: var(--red); }
 
-/* the numbers inside the redline band take its colour */
-.tach-face .tick.t7,
-.tach-face .tick.t8 { color: var(--red); }
+.gauge-speed .gauge-label { font-size: 12px; }
 
-/* The needle is a bar pivoting on its LEFT end at the centre of the dial:
-   transform-origin must stay 0 50% or a reading of zero points elsewhere. */
-.needle {
-    background: linear-gradient(90deg, color-mix(in srgb, var(--red) 25%, transparent), var(--red) 70%);
-    border-radius: 999px;
-    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .3));
-    height: clamp(4px, calc(var(--dial) * .018), 6px);
-    left: 50%;
-    position: absolute;
-    top: 50%;
-    transform: rotate(135deg);
-    transform-origin: 0 50%;
+.gauge-needle {
+    /* 20ms keeps the sweep smooth at the 20 Hz gauge rate without lagging
+       behind the reading. */
     transition: transform 20ms linear;
-    width: 34%;
-    z-index: 2;
 }
 
-.speed-needle {
-    background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 25%, transparent), var(--accent) 70%);
+.gauge-needle-body {
+    fill: var(--dial-needle);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35));
 }
 
-.needle-cap {
-    background: var(--surface);
-    border: 3px solid var(--surface-3);
-    border-radius: 50%;
-    box-shadow: var(--shadow-sm);
-    height: clamp(22px, calc(var(--dial) * .1), 34px);
+.gauge-speed .gauge-needle-body { fill: var(--accent); }
+
+.gauge-cap {
+    fill: var(--surface);
+    stroke: var(--line-strong);
+    stroke-width: 1.5;
+}
+
+.gauge-cap-inner { fill: var(--text-mute); }
+
+/* The dial lifts slightly as the reading climbs - the only part of the
+   instrument that reacts to the value other than the needle itself. */
+.gauge-face {
+    filter: drop-shadow(0 2px 10px rgba(10, 30, 60, .07))
+            drop-shadow(0 0 calc(var(--gauge-intensity) * 18px) var(--accent-glow));
+}
+
+.gauge-readout {
+    bottom: 17%;
     left: 50%;
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: clamp(22px, calc(var(--dial) * .1), 34px);
-    z-index: 3;
-}
-
-.rpm-readout,
-.speed-readout {
-    bottom: 19%;
-    left: 50%;
+    pointer-events: none;
     position: absolute;
     text-align: center;
     transform: translateX(-50%);
-    width: clamp(96px, calc(var(--dial) * .46), 160px);
-    z-index: 4;
+    width: 60%;
 }
 
-.rpm-readout strong {
+.gauge-readout strong {
     color: var(--text-strong);
     display: block;
-    font-size: clamp(23px, calc(var(--dial) * .13), 42px);
+    font-family: var(--mono);
+    font-size: clamp(22px, 2.6vw, 40px);
+    font-variant-numeric: tabular-nums;
     font-weight: 700;
+    letter-spacing: -0.03em;
     line-height: 1;
 }
 
-.rpm-readout span {
+.gauge-readout span {
     color: var(--text-mute);
-    font-size: clamp(8px, calc(var(--dial) * .031), 11px);
+    font-size: clamp(8px, .66vw, 10.5px);
     font-weight: 700;
     letter-spacing: .16em;
     text-transform: uppercase;
+}
+
+/* The two dials sit side by side as the widest block on the Live page,
+   rather than squeezed into a companion column. */
+.live-gauge-layout,
+.scanner-gauge-bank {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(auto-fit, minmax(clamp(240px, 26vw, 420px), 1fr));
+    order: -1;
 }
 
 /* --- charts ------------------------------------------------------------ */
